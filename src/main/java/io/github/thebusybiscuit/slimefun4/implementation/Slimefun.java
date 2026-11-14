@@ -8,6 +8,8 @@ import com.xzavier0722.mc.plugin.slimefun4.storage.migrator.BlockStorageMigrator
 import com.xzavier0722.mc.plugin.slimefun4.storage.migrator.PlayerProfileMigrator;
 import com.xzavier0722.mc.plugin.slimefuncomplib.ICompatibleSlimefun;
 import io.github.bakedlibs.dough.config.Config;
+import io.github.bakedlibs.dough.folialib.FoliaLib;
+import io.github.bakedlibs.dough.folialib.wrapper.task.WrappedTask;
 import io.github.bakedlibs.dough.protection.ProtectionManager;
 import io.github.thebusybiscuit.slimefun4.api.MinecraftVersion;
 import io.github.thebusybiscuit.slimefun4.api.SlimefunAddon;
@@ -165,6 +167,11 @@ public final class Slimefun extends JavaPlugin implements SlimefunAddon, ICompat
     private static Slimefun instance;
 
     /**
+     * Our wrapper around FoliaLib, used for Folia-safe scheduling.
+     */
+    private static FoliaLib foliaLib;
+
+    /**
      * Keep track of which {@link MinecraftVersion} we are on.
      */
     private MinecraftVersion minecraftVersion = MinecraftVersion.UNKNOWN;
@@ -253,6 +260,7 @@ public final class Slimefun extends JavaPlugin implements SlimefunAddon, ICompat
     @Override
     public void onEnable() {
         setInstance(this);
+        foliaLib = new FoliaLib(this);
 
         if (isUnitTest()) {
             // We handle Unit Tests seperately.
@@ -445,7 +453,7 @@ public final class Slimefun extends JavaPlugin implements SlimefunAddon, ICompat
 
         if (cfgManager.isAutoUpdate()) {
             // 汉化版自动更新
-            Bukkit.getScheduler().scheduleSyncDelayedTask(this, new AutoUpdateTask(this, getFile()));
+            Slimefun.getFoliaLib().getScheduler().runLater(new AutoUpdateTask(this, getFile()), 0L);
         }
 
         // Hooray!
@@ -482,7 +490,7 @@ public final class Slimefun extends JavaPlugin implements SlimefunAddon, ICompat
         getSQLProfiler().shutdown();
 
         // Cancel all tasks from this plugin immediately
-        Bukkit.getScheduler().cancelTasks(this);
+        Slimefun.getFoliaLib().getScheduler().cancelAllTasks();
 
         // Finishes all started movements/removals of block data
         ticker.setPaused(true);
@@ -1145,7 +1153,7 @@ public final class Slimefun extends JavaPlugin implements SlimefunAddon, ICompat
      *
      * @return The resulting {@link BukkitTask} or null if Slimefun was disabled
      */
-    public static @Nullable BukkitTask runSync(@Nonnull Runnable runnable, long delay) {
+    public static @Nullable WrappedTask runSync(@Nonnull Runnable runnable, long delay) {
         Validate.notNull(runnable, "Cannot run null");
         Validate.isTrue(delay >= 0, "The delay cannot be negative");
 
@@ -1159,7 +1167,7 @@ public final class Slimefun extends JavaPlugin implements SlimefunAddon, ICompat
             return null;
         }
 
-        return instance.getServer().getScheduler().runTaskLater(instance, runnable, delay);
+        return Slimefun.getFoliaLib().getScheduler().runLater(runnable, delay);
     }
 
     /**
@@ -1174,20 +1182,8 @@ public final class Slimefun extends JavaPlugin implements SlimefunAddon, ICompat
      *
      * @return The resulting {@link BukkitTask} or null if Slimefun was disabled
      */
-    public static @Nullable BukkitTask runSync(@Nonnull Runnable runnable) {
-        Validate.notNull(runnable, "Cannot run null");
-
-        // Run the task instantly within a Unit Test
-        if (getMinecraftVersion() == MinecraftVersion.UNIT_TEST) {
-            runnable.run();
-            return null;
-        }
-
-        if (instance == null || !instance.isEnabled()) {
-            return null;
-        }
-
-        return instance.getServer().getScheduler().runTask(instance, runnable);
+    public static @Nullable WrappedTask runSync(@Nonnull Runnable runnable) {
+        return runSync(runnable, 0L);
     }
 
     /**
@@ -1197,8 +1193,8 @@ public final class Slimefun extends JavaPlugin implements SlimefunAddon, ICompat
      * @param location 决定在哪个区域运行的 {@link Location}
      * @param runnable 要执行的 {@link Runnable}
      */
-    public static void runAtRegion(@Nonnull Location location, @Nonnull Runnable runnable) {
-        runAtRegion(location, runnable, 0L);
+    public static @Nullable WrappedTask runAtRegion(@Nonnull Location location, @Nonnull Runnable runnable) {
+        return runAtRegion(location, runnable, 1L);
     }
 
     /**
@@ -1209,7 +1205,7 @@ public final class Slimefun extends JavaPlugin implements SlimefunAddon, ICompat
      * @param runnable 要执行的 {@link Runnable}
      * @param delay    延迟（tick）
      */
-    public static void runAtRegion(@Nonnull Location location, @Nonnull Runnable runnable, long delay) {
+    public static @Nullable WrappedTask runAtRegion(@Nonnull Location location, @Nonnull Runnable runnable, long delay) {
         Validate.notNull(location, "Cannot run at a null location");
         Validate.notNull(runnable, "Cannot run null");
         Validate.isTrue(delay >= 0, "The delay cannot be negative");
@@ -1217,11 +1213,11 @@ public final class Slimefun extends JavaPlugin implements SlimefunAddon, ICompat
         // 单元测试中立即执行
         if (getMinecraftVersion() == MinecraftVersion.UNIT_TEST) {
             runnable.run();
-            return;
+            return null;
         }
 
         if (instance == null || !instance.isEnabled()) {
-            return;
+            return null;
         }
 
         /*
@@ -1229,29 +1225,10 @@ public final class Slimefun extends JavaPlugin implements SlimefunAddon, ICompat
          * 直接放弃而不是抛出 NullPointerException。
          */
         if (location.getWorld() == null) {
-            return;
+            return null;
         }
 
-        if (delay <= 0) {
-            // 已在拥有该区域的线程上：立即执行以保持原有时序
-            try {
-                if (Bukkit.isOwnedByCurrentRegion(location)) {
-                    runnable.run();
-                    return;
-                }
-
-                Bukkit.getRegionScheduler().run(instance, location, task -> runnable.run());
-            } catch (IllegalStateException x) {
-                // 区块/世界已卸载时区域调度器会拒绝任务
-            }
-            return;
-        }
-
-        try {
-            Bukkit.getRegionScheduler().runDelayed(instance, location, task -> runnable.run(), delay);
-        } catch (IllegalStateException x) {
-            // 区块/世界已卸载
-        }
+        return Slimefun.getFoliaLib().getScheduler().runAtLocationLater(location, runnable, delay);
     }
 
     /**
@@ -1262,8 +1239,8 @@ public final class Slimefun extends JavaPlugin implements SlimefunAddon, ICompat
      * @param entity   决定在哪个区域运行的 {@link Entity}
      * @param runnable 要执行的 {@link Runnable}
      */
-    public static void runAtEntity(@Nonnull Entity entity, @Nonnull Runnable runnable) {
-        runAtEntity(entity, runnable, 0L);
+    public static @Nullable WrappedTask runAtEntity(@Nonnull Entity entity, @Nonnull Runnable runnable) {
+        return runAtEntity(entity, runnable, 1L);
     }
 
     /**
@@ -1274,39 +1251,25 @@ public final class Slimefun extends JavaPlugin implements SlimefunAddon, ICompat
      * @param runnable 要执行的 {@link Runnable}
      * @param delay    延迟（tick）
      */
-    public static void runAtEntity(@Nonnull Entity entity, @Nonnull Runnable runnable, long delay) {
+    public static @Nullable WrappedTask runAtEntity(@Nonnull Entity entity, @Nonnull Runnable runnable, long delay) {
         Validate.notNull(entity, "Cannot run at a null entity");
         Validate.notNull(runnable, "Cannot run null");
         Validate.isTrue(delay >= 0, "The delay cannot be negative");
 
         if (getMinecraftVersion() == MinecraftVersion.UNIT_TEST) {
             runnable.run();
-            return;
+            return null;
         }
 
         if (instance == null || !instance.isEnabled()) {
-            return;
+            return null;
         }
 
-        if (delay <= 0) {
-            try {
-                if (Bukkit.isOwnedByCurrentRegion(entity)) {
-                    runnable.run();
-                    return;
-                }
+        return Slimefun.getFoliaLib().getScheduler().runAtEntityLater(entity, runnable, delay);
+    }
 
-                entity.getScheduler().run(instance, task -> runnable.run(), null);
-            } catch (IllegalStateException x) {
-                // 实体已移除
-            }
-            return;
-        }
-
-        try {
-            entity.getScheduler().runDelayed(instance, task -> runnable.run(), null, delay);
-        } catch (IllegalStateException x) {
-            // 实体已移除
-        }
+    public static FoliaLib getFoliaLib() {
+        return foliaLib;
     }
 
     @Nonnull

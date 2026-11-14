@@ -79,7 +79,7 @@ class GitHubTask implements Runnable {
                 && Slimefun.instance() != null
                 && Slimefun.instance().isEnabled()) {
             // Slow down API requests and wait a minute after more than x requests were made
-            Bukkit.getScheduler().runTaskLaterAsynchronously(Slimefun.instance(), this::grabTextures, 2 * 60 * 20L);
+            Slimefun.getFoliaLib().getScheduler().runLaterAsync(this::grabTextures, 2L * 60 * 20);
         }
 
         for (GitHubConnector connector : gitHubService.getConnectors()) {

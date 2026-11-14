@@ -133,7 +133,7 @@ public class BlockDataController extends ADataController {
             case LOAD_ON_STARTUP -> loadLoadedWorlds();
         }
 
-        Bukkit.getScheduler().runTaskLater(Slimefun.instance(), this::loadUniversalRecord, 1);
+        Slimefun.runSync(this::loadUniversalRecord, 1L);
     }
 
     /**
