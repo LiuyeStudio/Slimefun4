@@ -40,7 +40,8 @@ public final class LegacyItemMetaDeserializer implements ConfigurationSerializab
         var internal = serializedMeta.get("internal");
         if (internal instanceof String encodedNbt) {
             legacyProfile = LegacySkullProfileDataFixer.extractProfile(encodedNbt);
-            serializedMeta.put("internal", LegacySkullProfileDataFixer.fix(encodedNbt));
+            var fixedNbt = LegacySkullProfileDataFixer.fix(encodedNbt);
+            serializedMeta.put("internal", LegacyEnchantmentDataFixer.fix(fixedNbt));
         }
 
         var itemMeta = ConfigurationSerialization.deserializeObject(serializedMeta, delegate);

@@ -1,7 +1,7 @@
 package io.github.thebusybiscuit.slimefun4.implementation.items.multiblocks;
 
 import io.github.bakedlibs.dough.items.ItemUtils;
-import io.github.bakedlibs.dough.scheduling.TaskQueue;
+import city.norain.slimefun4.utils.FoliaTaskQueue;
 import io.github.thebusybiscuit.slimefun4.api.events.MultiBlockCraftEvent;
 import io.github.thebusybiscuit.slimefun4.api.items.ItemGroup;
 import io.github.thebusybiscuit.slimefun4.api.items.SlimefunItemStack;
@@ -107,7 +107,7 @@ public class AutomatedPanningMachine extends MultiBlockMachine {
             }
         }
 
-        TaskQueue queue = new TaskQueue();
+        FoliaTaskQueue queue = new FoliaTaskQueue();
 
         queue.thenRepeatEvery(
                 20,
@@ -131,6 +131,6 @@ public class AutomatedPanningMachine extends MultiBlockMachine {
             }
         });
 
-        queue.execute(Slimefun.instance());
+        queue.execute(b.getLocation());
     }
 }

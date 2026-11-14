@@ -66,18 +66,33 @@ public final class ItemStackDataCodec {
 
     private static ItemStack deserializeLegacyWithCompatibility(byte[] serializedObject) throws Exception {
         synchronized (LEGACY_DESERIALIZATION_LOCK) {
-            var alias = LegacyItemMetaDeserializer.ITEM_META_ALIAS;
-            var original = ConfigurationSerialization.getClassByAlias(alias);
-            if (original == null) {
+            var metaAlias = LegacyItemMetaDeserializer.ITEM_META_ALIAS;
+            var itemAlias = LegacyItemStackDeserializer.ITEM_STACK_ALIAS;
+            var originalMeta = ConfigurationSerialization.getClassByAlias(metaAlias);
+            // 某些服务端实现(例如测试环境)并没有注册 ItemStack 别名, 此时跳过这层兼容处理
+            var originalItem = ConfigurationSerialization.getClassByAlias(itemAlias);
+
+            if (originalMeta == null) {
                 throw new IllegalStateException("Paper ItemMeta deserializer is not registered");
             }
+
             try {
-                LegacyItemMetaDeserializer.setDelegate(original);
-                ConfigurationSerialization.registerClass(LegacyItemMetaDeserializer.class, alias);
+                LegacyItemMetaDeserializer.setDelegate(originalMeta);
+                ConfigurationSerialization.registerClass(LegacyItemMetaDeserializer.class, metaAlias);
+
+                if (originalItem != null) {
+                    ConfigurationSerialization.registerClass(LegacyItemStackDeserializer.class, itemAlias);
+                }
+
                 return deserializeLegacy(serializedObject);
             } finally {
-                ConfigurationSerialization.unregisterClass(alias);
-                ConfigurationSerialization.registerClass(original, alias);
+                if (originalItem != null) {
+                    ConfigurationSerialization.unregisterClass(itemAlias);
+                    ConfigurationSerialization.registerClass(originalItem, itemAlias);
+                }
+
+                ConfigurationSerialization.unregisterClass(metaAlias);
+                ConfigurationSerialization.registerClass(originalMeta, metaAlias);
             }
         }
     }

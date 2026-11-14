@@ -74,6 +74,8 @@ public class DataUtils {
 
             return result;
         } catch (Exception ex) {
+            // 读取失败时先把数据库里的原始数据备份下来, 避免之后该槽位被覆盖而永久丢失
+            ItemDataRecovery.recover(itemData, ex);
             throw new RuntimeException("反序列化物品时出现错误, 对应物品无法显示", ex);
         }
     }
@@ -92,7 +94,16 @@ public class DataUtils {
         }
 
         var encodedData = base64Str.getBytes(StandardCharsets.US_ASCII);
-        var decodedData = Base64.getMimeDecoder().decode(base64Str);
+
+        byte[] decodedData;
+        try {
+            decodedData = Base64.getMimeDecoder().decode(base64Str);
+        } catch (IllegalArgumentException ex) {
+            // 数据库里的内容已经不是合法的 Base64, 先把原文备份下来
+            ItemDataRecovery.recover(base64Str, ex);
+            throw ex;
+        }
+
         return deserializeItemStack(ItemStackDataCodec.isCurrent(decodedData) ? decodedData : encodedData);
     }
 

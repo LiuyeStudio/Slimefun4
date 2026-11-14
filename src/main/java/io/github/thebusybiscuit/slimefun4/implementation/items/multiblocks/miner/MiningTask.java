@@ -3,7 +3,7 @@ package io.github.thebusybiscuit.slimefun4.implementation.items.multiblocks.mine
 import io.github.bakedlibs.dough.blocks.BlockPosition;
 import io.github.bakedlibs.dough.items.ItemUtils;
 import io.github.bakedlibs.dough.protection.Interaction;
-import io.github.bakedlibs.dough.scheduling.TaskQueue;
+import city.norain.slimefun4.utils.FoliaTaskQueue;
 import io.github.thebusybiscuit.slimefun4.api.items.virtual.VirtualItemHandler.InventoryContext;
 import io.github.thebusybiscuit.slimefun4.core.services.sounds.SoundEffect;
 import io.github.thebusybiscuit.slimefun4.implementation.Slimefun;
@@ -119,7 +119,7 @@ class MiningTask implements Runnable {
          * This is our warm up animation.
          * The pistons will push after another in decreasing intervals
          */
-        TaskQueue queue = new TaskQueue();
+        FoliaTaskQueue queue = new FoliaTaskQueue();
 
         queue.thenRun(4, () -> setPistonState(pistons[0], true));
         queue.thenRun(10, () -> setPistonState(pistons[0], false));
@@ -161,7 +161,7 @@ class MiningTask implements Runnable {
         queue.thenRun(2, () -> setPistonState(pistons[1], false));
 
         queue.thenRun(1, this);
-        queue.execute(Slimefun.instance());
+        queue.execute(chest.getLocation());
     }
 
     @Override
@@ -171,7 +171,7 @@ class MiningTask implements Runnable {
             return;
         }
 
-        TaskQueue queue = new TaskQueue();
+        FoliaTaskQueue queue = new FoliaTaskQueue();
 
         queue.thenRun(1, () -> setPistonState(pistons[0], true));
         queue.thenRun(3, () -> setPistonState(pistons[0], false));
@@ -187,6 +187,12 @@ class MiningTask implements Runnable {
                 World world = start.getWorld();
                 for (int y = height; y > world.getMinHeight(); y--) {
                     Block b = world.getBlockAt(x, y, z);
+
+                    // Folia: 采矿范围可能跨到相邻区域, 跨区域的方块读写会直接抛异常
+                    if (!Bukkit.isOwnedByCurrentRegion(b.getLocation())) {
+                        nextColumn();
+                        return;
+                    }
 
                     if (!Slimefun.getProtectionManager()
                             .hasPermission(Bukkit.getOfflinePlayer(owner), b, Interaction.BREAK_BLOCK)) {
@@ -205,7 +211,8 @@ class MiningTask implements Runnable {
                         ores++;
 
                         // Repeat the same column when we hit an ore.
-                        Slimefun.runSync(this, 4);
+                        // Folia: 采矿涉及方块读写, 需要矿机所在区域的线程
+                        Slimefun.runAtRegion(chest.getLocation(), this, 4);
                         return;
                     }
                 }
@@ -222,7 +229,7 @@ class MiningTask implements Runnable {
             }
         });
 
-        queue.execute(Slimefun.instance());
+        queue.execute(chest.getLocation());
     }
 
     /**
@@ -252,7 +259,7 @@ class MiningTask implements Runnable {
             return;
         }
 
-        Slimefun.runSync(this, 5);
+        Slimefun.runAtRegion(chest.getLocation(), this, 5);
     }
 
     /**

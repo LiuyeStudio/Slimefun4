@@ -76,6 +76,7 @@ import io.github.thebusybiscuit.slimefun4.implementation.listeners.SeismicAxeLis
 import io.github.thebusybiscuit.slimefun4.implementation.listeners.SlimefunBootsListener;
 import io.github.thebusybiscuit.slimefun4.implementation.listeners.SlimefunBowListener;
 import io.github.thebusybiscuit.slimefun4.implementation.listeners.SlimefunGuideListener;
+import io.github.thebusybiscuit.slimefun4.implementation.listeners.SlimefunGuideRecipeListener;
 import io.github.thebusybiscuit.slimefun4.implementation.listeners.SlimefunItemConsumeListener;
 import io.github.thebusybiscuit.slimefun4.implementation.listeners.SlimefunItemHitListener;
 import io.github.thebusybiscuit.slimefun4.implementation.listeners.SlimefunItemInteractListener;
