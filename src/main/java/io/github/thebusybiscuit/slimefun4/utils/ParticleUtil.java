@@ -70,10 +70,10 @@ public class ParticleUtil {
                             0);
                 }
             } else {
-                plugin.getServer()
+                Slimefun.getFoliaLib()
                         .getScheduler()
-                        .runTaskLaterAsynchronously(
-                                plugin,
+                        .runAtLocationLater(
+                                location,
                                 () -> {
                                     for (int i = 0; i < BLOCK_CUBE_OFFSET_X.length; i++) {
                                         world.spawnParticle(
@@ -108,14 +108,12 @@ public class ParticleUtil {
 
     public static void highlightBlock(@NotNull Player player, @NotNull Location location, int shrinkTimes) {
         for (int i = 0; i < shrinkTimes; i++) {
-            Bukkit.getScheduler()
-                    .runTaskLater(
-                            Slimefun.instance(),
-                            () -> {
-                                drawLineFrom(player.getEyeLocation().clone().add(0D, -0.5D, 0D), location);
-                                highlightBlock(location);
-                            },
-                            20L * i);
+            Slimefun.runSync(
+                    () -> {
+                        drawLineFrom(player.getEyeLocation().clone().add(0D, -0.5D, 0D), location);
+                        highlightBlock(location);
+                    },
+                    20L * i);
         }
     }
 

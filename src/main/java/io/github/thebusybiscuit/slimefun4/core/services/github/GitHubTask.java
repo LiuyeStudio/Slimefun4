@@ -129,8 +129,7 @@ class GitHubTask implements Runnable {
 
                 // Retry after 5 minutes if it was just rate-limiting
                 if (msg != null && msg.contains("429")) {
-                    Bukkit.getScheduler()
-                            .runTaskLaterAsynchronously(Slimefun.instance(), this::grabTextures, 5 * 60 * 20L);
+                    Slimefun.getFoliaLib().getScheduler().runLaterAsync(this::grabTextures, 5 * 60 * 20L);
                 }
 
                 return -1;

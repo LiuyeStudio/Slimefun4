@@ -45,6 +45,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import javax.annotation.Nonnull;
 
 public class SqlUtils {
 
@@ -156,7 +157,42 @@ public class SqlUtils {
             return toBinarySqlValStr(bytes, false);
         }
         var stringVal = (String) val;
-        return key.isNumType() ? stringVal : "'" + stringVal + "'";
+        return key.isNumType() ? stringVal : "'" + escapeSqlLiteral(stringVal) + "'";
+    }
+
+    /**
+     * This escapes a {@link String} so that it can safely be embedded into a single quoted SQL
+     * literal.
+     * <p>
+     * All generated SQL is built by string concatenation, so any value that may contain a quote
+     * (a player name, a world name such as {@code "world's"} or a custom backpack name) used to
+     * break the statement: the write task threw an {@link java.sql.SQLException} and the data was
+     * silently lost. Escaping the quote (and the MySQL escape character) keeps the literal valid.
+     *
+     * @param value
+     *            The raw {@link String} to escape, may not be null
+     *
+     * @return The escaped {@link String}
+     */
+    @Nonnull
+    private static String escapeSqlLiteral(@Nonnull String value) {
+        if (value.isEmpty()) {
+            return value;
+        }
+
+        StringBuilder builder = new StringBuilder(value.length() + 8);
+
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+
+            switch (c) {
+                case '\'' -> builder.append("''");
+                case '\\' -> builder.append("\\\\");
+                default -> builder.append(c);
+            }
+        }
+
+        return builder.toString();
     }
 
     public static String toPostgreSqlValStr(FieldKey key, Object val) {

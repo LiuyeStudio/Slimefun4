@@ -46,7 +46,7 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
-import org.bukkit.scheduler.BukkitTask;
+import io.github.bakedlibs.dough.folialib.wrapper.task.WrappedTask;
 
 /**
  * 方块数据控制器
@@ -90,7 +90,7 @@ public class BlockDataController extends ADataController {
     private boolean enableDelayedSaving = false;
 
     private int delayedSecond = 0;
-    private BukkitTask looperTask;
+    private WrappedTask looperTask;
     /**
      * 区块数据加载模式
      * {@link ChunkDataLoadMode}
@@ -140,32 +140,28 @@ public class BlockDataController extends ADataController {
      * 加载所有服务器已加载的世界中的数据
      */
     private void loadLoadedWorlds() {
-        Bukkit.getScheduler()
-                .runTaskLater(
-                        Slimefun.instance(),
-                        () -> {
-                            for (var world : Bukkit.getWorlds()) {
-                                loadWorld(world);
-                            }
-                        },
-                        1);
+        Slimefun.runSync(
+                () -> {
+                    for (var world : Bukkit.getWorlds()) {
+                        loadWorld(world);
+                    }
+                },
+                1L);
     }
 
     /**
      * 加载所有服务器已加载的世界区块中的数据
      */
     private void loadLoadedChunks() {
-        Bukkit.getScheduler()
-                .runTaskLater(
-                        Slimefun.instance(),
-                        () -> {
-                            for (var world : Bukkit.getWorlds()) {
-                                for (var chunk : world.getLoadedChunks()) {
-                                    loadChunk(chunk, false, true);
-                                }
-                            }
-                        },
-                        1);
+        Slimefun.runSync(
+                () -> {
+                    for (var world : Bukkit.getWorlds()) {
+                        for (var chunk : world.getLoadedChunks()) {
+                            loadChunk(chunk, false, true);
+                        }
+                    }
+                },
+                1L);
     }
 
     /**
@@ -182,13 +178,14 @@ public class BlockDataController extends ADataController {
         }
         enableDelayedSaving = true;
         this.delayedSecond = delayedSecond;
-        looperTask = Bukkit.getScheduler()
-                .runTaskTimerAsynchronously(
-                        p,
+        // Folia: runTimerAsync 替代 runTaskTimerAsynchronously（Folia 26.3 全局调度器会抛 UnsupportedOperationException）
+        looperTask = Slimefun.getFoliaLib()
+                .getScheduler()
+                .runTimerAsync(
                         new DelayedSavingLooperTask(
                                 forceSavePeriod, () -> new HashMap<>(delayedWriteTasks), delayedWriteTasks::remove),
-                        20,
-                        20);
+                        20L,
+                        20L);
     }
 
     public boolean isDelayedSavingEnabled() {

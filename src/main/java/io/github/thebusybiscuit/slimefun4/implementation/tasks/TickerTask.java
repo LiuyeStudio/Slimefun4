@@ -146,8 +146,7 @@ public class TickerTask implements Runnable {
     public void start(@Nonnull Slimefun plugin) {
         this.tickRate = Slimefun.getCfg().getInt("URID.custom-ticker-delay");
 
-        BukkitScheduler scheduler = plugin.getServer().getScheduler();
-        scheduler.runTaskTimerAsynchronously(plugin, this, 100L, 1);
+        Slimefun.getFoliaLib().getScheduler().runTimerAsync(this, 100L, 1L);
     }
 
     /**
