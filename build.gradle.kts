@@ -28,6 +28,8 @@ tasks.compileJava {
 }
 
 repositories {
+    // Pinned local copy of dough-api (contains folialib for Folia support). Must stay first.
+    maven { url = uri(layout.projectDirectory.dir("local-deps")) }
     mavenCentral()
     maven("https://hub.spigotmc.org/nexus/content/repositories/snapshots")
     maven("https://repo.papermc.io/repository/maven-public/")
