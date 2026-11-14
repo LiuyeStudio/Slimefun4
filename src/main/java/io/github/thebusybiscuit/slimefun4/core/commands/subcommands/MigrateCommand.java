@@ -8,7 +8,6 @@ import io.github.thebusybiscuit.slimefun4.core.commands.SubCommand;
 import io.github.thebusybiscuit.slimefun4.implementation.Slimefun;
 import java.util.logging.Level;
 import javax.annotation.Nonnull;
-import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 
@@ -29,7 +28,7 @@ public class MigrateCommand extends SubCommand {
             if (args.length > 1 && args[1].equalsIgnoreCase("confirm")) {
                 Slimefun.getLocalization().sendMessage(sender, "commands.migrate.started", true);
 
-                Slimefun.getFoliaLib().getScheduler().runAsync(task -> {
+                Slimefun.getFoliaLib().getScheduler().runAsync(wrappedTask -> {
                     try {
                         var status = PlayerProfileMigrator.getInstance().migrateData();
                         sendMigrateStatus("玩家数据", sender, status);
@@ -39,7 +38,7 @@ public class MigrateCommand extends SubCommand {
                     }
                 });
 
-                Slimefun.getFoliaLib().getScheduler().runAsync(task -> {
+                Slimefun.getFoliaLib().getScheduler().runAsync(wrappedTask -> {
                     try {
                         var status = BlockStorageMigrator.getInstance().migrateData();
                         sendMigrateStatus("方块数据", sender, status);

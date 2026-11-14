@@ -1042,14 +1042,16 @@ public class ProgrammableAndroid extends SlimefunItem
 
             Slimefun.getDatabaseManager().getBlockDataController().move(uniData, to.getLocation());
 
-            Slimefun.runSync(() -> {
-                PlayerSkin skin = PlayerSkin.fromBase64(texture);
-                Material type = to.getType();
-                // Ensure that this Block is still a Player Head
-                if (type == Material.PLAYER_HEAD || type == Material.PLAYER_WALL_HEAD) {
-                    PlayerHead.setSkin(to, skin, true);
-                }
-            });
+            Slimefun.runSyncAtLocation(
+                    () -> {
+                        PlayerSkin skin = PlayerSkin.fromBase64(texture);
+                        Material type = to.getType();
+                        // Ensure that this Block is still a Player Head
+                        if (type == Material.PLAYER_HEAD || type == Material.PLAYER_WALL_HEAD) {
+                            PlayerHead.setSkin(to, skin, true);
+                        }
+                    },
+                    to.getLocation());
 
             from.setType(Material.AIR);
         }

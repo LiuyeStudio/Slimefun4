@@ -145,6 +145,8 @@ dependencies {
 - 如果你是 Windows 系统: `./gradlew.bat build`
 - 如果你是类 Unix 系统: `./gradlew build`
 
+Folia 开发分支的 CI 构建流程可参考 [dev-ci.yml](https://github.com/Craft233MC/Slimefun4/blob/dev/.github/workflows/dev-ci.yml)。
+
 ## :framed_picture: 截图
 
 那么，Slimefun 看起来是怎样的呢？<br>

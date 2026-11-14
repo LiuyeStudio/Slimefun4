@@ -109,7 +109,7 @@ public class Compressor extends MultiBlockMachine {
         for (int i = 0; i < 4; i++) {
             int j = i;
 
-            Slimefun.runSync(
+            Slimefun.runSyncAtLocation(
                     () -> {
                         if (j < 3) {
                             if (j == 1) {
@@ -121,7 +121,8 @@ public class Compressor extends MultiBlockMachine {
                             handleCraftedItem(output, dispenser, dispInv);
                         }
                     },
-                    i * 20L);
+                    i * 20L,
+                    dispenser.getLocation());
         }
     }
 }

@@ -110,11 +110,12 @@ public class AutomatedPanningMachine extends MultiBlockMachine {
         FoliaTaskQueue queue = new FoliaTaskQueue();
 
         queue.thenRepeatEvery(
+                b.getLocation(),
                 20,
                 5,
                 () -> b.getWorld()
                         .playEffect(b.getRelative(BlockFace.DOWN).getLocation(), Effect.STEP_SOUND, material));
-        queue.thenRun(20, () -> {
+        queue.thenRun(b.getLocation(), 20, () -> {
             if (finalOutput.getType() != Material.AIR) {
                 Optional<Inventory> outputChest = OutputChest.findOutputChestFor(b.getRelative(BlockFace.DOWN), output);
 

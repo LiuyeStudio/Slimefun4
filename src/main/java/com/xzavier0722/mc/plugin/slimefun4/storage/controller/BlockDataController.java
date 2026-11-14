@@ -133,35 +133,39 @@ public class BlockDataController extends ADataController {
             case LOAD_ON_STARTUP -> loadLoadedWorlds();
         }
 
-        Slimefun.runSync(this::loadUniversalRecord, 1L);
+        Slimefun.getFoliaLib().getScheduler().runLater(this::loadUniversalRecord, 1);
     }
 
     /**
      * 加载所有服务器已加载的世界中的数据
      */
     private void loadLoadedWorlds() {
-        Slimefun.runSync(
-                () -> {
-                    for (var world : Bukkit.getWorlds()) {
-                        loadWorld(world);
-                    }
-                },
-                1L);
+        Slimefun.getFoliaLib()
+                .getScheduler()
+                .runLater(
+                        () -> {
+                            for (var world : Bukkit.getWorlds()) {
+                                loadWorld(world);
+                            }
+                        },
+                        1);
     }
 
     /**
      * 加载所有服务器已加载的世界区块中的数据
      */
     private void loadLoadedChunks() {
-        Slimefun.runSync(
-                () -> {
-                    for (var world : Bukkit.getWorlds()) {
-                        for (var chunk : world.getLoadedChunks()) {
-                            loadChunk(chunk, false, true);
-                        }
-                    }
-                },
-                1L);
+        Slimefun.getFoliaLib()
+                .getScheduler()
+                .runLater(
+                        () -> {
+                            for (var world : Bukkit.getWorlds()) {
+                                for (var chunk : world.getLoadedChunks()) {
+                                    loadChunk(chunk, false, true);
+                                }
+                            }
+                        },
+                        1);
     }
 
     /**
@@ -1610,7 +1614,7 @@ public class BlockDataController extends ADataController {
 
             var universalData = createUniversalBlock(l, sfId);
 
-            Slimefun.runSync(
+            Slimefun.runSyncAtLocation(
                     () -> {
                         if (Slimefun.getBlockDataService()
                                 .isTileEntity(l.getBlock().getType())) {
@@ -1618,7 +1622,8 @@ public class BlockDataController extends ADataController {
                                     .updateUniversalDataUUID(l.getBlock(), String.valueOf(universalData.getUUID()));
                         }
                     },
-                    10L);
+                    10L,
+                    l);
 
             kvData.forEach(recordSet -> universalData.setData(
                     recordSet.get(FieldKey.DATA_KEY), DataUtils.blockDataDebase64(recordSet.get(FieldKey.DATA_VALUE))));

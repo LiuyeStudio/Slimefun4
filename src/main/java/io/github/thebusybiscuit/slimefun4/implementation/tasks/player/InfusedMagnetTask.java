@@ -1,6 +1,7 @@
 package io.github.thebusybiscuit.slimefun4.implementation.tasks.player;
 
 import io.github.thebusybiscuit.slimefun4.core.services.sounds.SoundEffect;
+import io.github.thebusybiscuit.slimefun4.implementation.Slimefun;
 import io.github.thebusybiscuit.slimefun4.implementation.items.magical.InfusedMagnet;
 import io.github.thebusybiscuit.slimefun4.utils.SlimefunUtils;
 import javax.annotation.Nonnull;
@@ -25,6 +26,8 @@ public class InfusedMagnetTask extends AbstractPlayerTask {
      */
     private final double radius;
 
+    private static Boolean playSound = false;
+
     /**
      * This creates a new {@link InfusedMagnetTask} for the given {@link Player} with the given
      * pickup radius.
@@ -42,17 +45,20 @@ public class InfusedMagnetTask extends AbstractPlayerTask {
 
     @Override
     protected void executeTask() {
-        boolean playSound = false;
+        playSound = false;
 
-        for (Entity entity : p.getNearbyEntities(radius, radius, radius)) {
-            if (entity instanceof Item item
-                    && !SlimefunUtils.hasNoPickupFlag(item)
-                    && item.getPickupDelay() <= 0
-                    && p.getLocation().distanceSquared(item.getLocation()) > 0.3) {
-                item.teleport(p.getLocation());
-                playSound = true;
+        Slimefun.getFoliaLib().getScheduler().runAtLocation(p.getLocation(), wrappedTask -> {
+            for (Entity entity :
+                    Slimefun.getNearbyEntities(p, p.getBoundingBox().expand(radius, radius, radius), Entity::isValid)) {
+                if (entity instanceof Item item
+                        && !SlimefunUtils.hasNoPickupFlag(item)
+                        && item.getPickupDelay() <= 0
+                        && p.getLocation().distanceSquared(item.getLocation()) > 0.3) {
+                    item.teleportAsync(p.getLocation());
+                    playSound = true;
+                }
             }
-        }
+        });
 
         // Only play a sound if an Item was found
         if (playSound) {

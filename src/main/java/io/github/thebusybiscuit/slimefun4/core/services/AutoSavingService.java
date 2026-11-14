@@ -3,7 +3,6 @@ package io.github.thebusybiscuit.slimefun4.core.services;
 import io.github.thebusybiscuit.slimefun4.api.player.PlayerProfile;
 import io.github.thebusybiscuit.slimefun4.implementation.Slimefun;
 import java.util.Iterator;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import javax.annotation.Nonnull;
 import org.bukkit.block.Block;
@@ -30,22 +29,11 @@ public class AutoSavingService {
      */
     public void start(@Nonnull Slimefun plugin, int interval) {
         this.interval = interval;
-
-        // Folia: 使用 AsyncScheduler 替代 runTaskTimer / runTaskTimerAsynchronously
-        long intervalMillis = interval * 60_000L;
-        plugin.getServer()
-                .getAsyncScheduler()
-                .runAtFixedRate(
-                        plugin,
-                        task -> this.saveAllPlayers(),
-                        2000L,
-                        intervalMillis,
-                        TimeUnit.MILLISECONDS);
-        plugin.getServer()
-                .getAsyncScheduler()
-                .runAtFixedRate(
-                        plugin,
-                        task -> {
+        Slimefun.getFoliaLib().getScheduler().runTimer(this::saveAllPlayers, 2000L, interval * 60L * 20L);
+        Slimefun.getFoliaLib()
+                .getScheduler()
+                .runTimerAsync(
+                        () -> {
                             Slimefun.getDatabaseManager()
                                     .getBlockDataController()
                                     .saveAllBlockInventories();
@@ -55,8 +43,7 @@ public class AutoSavingService {
                                     .saveAllUniversalInventories();
                         },
                         2000L,
-                        intervalMillis,
-                        TimeUnit.MILLISECONDS);
+                        interval * 60L * 20L);
     }
 
     /**

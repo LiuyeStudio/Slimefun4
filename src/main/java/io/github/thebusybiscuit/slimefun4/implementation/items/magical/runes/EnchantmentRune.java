@@ -81,7 +81,7 @@ public class EnchantmentRune extends SimpleSlimefunItem<ItemDropHandler> {
         return (e, p, item) -> {
             if (isItem(item.getItemStack())) {
                 if (canUse(p, true)) {
-                    Slimefun.runSync(
+                    Slimefun.runSyncAtEntity(
                             () -> {
                                 try {
                                     addRandomEnchantment(p, item);
@@ -89,7 +89,8 @@ public class EnchantmentRune extends SimpleSlimefunItem<ItemDropHandler> {
                                     error("An Exception occurred while trying to apply an Enchantment Rune", x);
                                 }
                             },
-                            20L);
+                            20L,
+                            p);
                 }
 
                 return true;
@@ -106,7 +107,7 @@ public class EnchantmentRune extends SimpleSlimefunItem<ItemDropHandler> {
         }
 
         Location l = rune.getLocation();
-        Collection<Entity> entites = l.getWorld().getNearbyEntities(l, RANGE, RANGE, RANGE, this::findCompatibleItem);
+        Collection<Entity> entites = Slimefun.getNearbyEntities(l, RANGE, RANGE, RANGE, this::findCompatibleItem);
         Optional<Entity> optional = entites.stream().findFirst();
 
         if (optional.isPresent()) {
@@ -150,7 +151,7 @@ public class EnchantmentRune extends SimpleSlimefunItem<ItemDropHandler> {
                 // This lightning is just an effect, it deals no damage.
                 l.getWorld().strikeLightningEffect(l);
 
-                Slimefun.runSync(
+                Slimefun.runSyncAtEntity(
                         () -> {
                             // Being sure entities are still valid and not picked up or whatsoever.
                             if (rune.isValid() && item.isValid() && itemStack.getAmount() == 1) {
@@ -180,7 +181,8 @@ public class EnchantmentRune extends SimpleSlimefunItem<ItemDropHandler> {
                                 l.getWorld().dropItemNaturally(l, itemStack);
                             }
                         },
-                        10L);
+                        10L,
+                        p);
             } else {
                 Slimefun.getLocalization().sendMessage(p, "messages.enchantment-rune.fail", true);
             }

@@ -70,13 +70,14 @@ public class GrapplingHookListener implements Listener {
             return;
         }
 
-        Slimefun.runSync(
+        Slimefun.runSyncAtLocation(
                 () -> {
                     if (e.getEntity() instanceof Arrow arrow) {
                         handleGrapplingHook(arrow);
                     }
                 },
-                2L);
+                2L,
+                e.getEntity().getLocation());
     }
 
     @EventHandler
@@ -189,7 +190,7 @@ public class GrapplingHookListener implements Listener {
                 } else {
                     Location l = player.getLocation();
                     l.setY(l.getY() + 0.5);
-                    player.teleport(l);
+                    player.teleportAsync(l);
 
                     double g = -0.08;
                     double d = target.distance(l);
@@ -207,7 +208,7 @@ public class GrapplingHookListener implements Listener {
                 player.setVelocity(velocity);
 
                 hook.remove();
-                Slimefun.runSync(() -> activeHooks.remove(player.getUniqueId()), 20L);
+                Slimefun.runSyncAtLocation(() -> activeHooks.remove(player.getUniqueId()), 20L, arrow.getLocation());
             }
         }
     }
@@ -225,7 +226,7 @@ public class GrapplingHookListener implements Listener {
         activeHooks.put(uuid, hook);
 
         // To fix issue #253
-        Slimefun.runSync(
+        Slimefun.runSyncAtLocation(
                 () -> {
                     GrapplingHookEntity entity = activeHooks.get(uuid);
 
@@ -233,14 +234,16 @@ public class GrapplingHookListener implements Listener {
                         Slimefun.getBowListener().getProjectileData().remove(uuid);
                         entity.remove();
 
-                        Slimefun.runSync(
+                        Slimefun.runSyncAtLocation(
                                 () -> {
                                     activeHooks.remove(uuid);
                                     invulnerability.remove(uuid);
                                 },
-                                20L);
+                                20L,
+                                arrow.getLocation());
                     }
                 },
-                despawnTicks);
+                despawnTicks,
+                arrow.getLocation());
     }
 }

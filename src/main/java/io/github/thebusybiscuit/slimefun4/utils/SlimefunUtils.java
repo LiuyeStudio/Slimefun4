@@ -591,7 +591,7 @@ public final class SlimefunUtils {
 
     public static void updateCapacitorTexture(@Nonnull Location l, double percentage) {
 
-        Slimefun.runSync(new CapacitorTextureUpdateTask(l, percentage));
+        Slimefun.runSyncAtLocation(new CapacitorTextureUpdateTask(l, percentage), l);
     }
 
     /**

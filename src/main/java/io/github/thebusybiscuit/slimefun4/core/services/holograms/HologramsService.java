@@ -135,8 +135,7 @@ public class HologramsService {
         }
 
         // Scan all nearby entities which could be possible holograms
-        Collection<Entity> holograms = loc.getWorld().getNearbyEntities(loc, RADIUS, RADIUS, RADIUS, this::isHologram);
-
+        Collection<Entity> holograms = Slimefun.getNearbyEntities(loc, RADIUS, RADIUS, RADIUS, this::isHologram);
         for (Entity n : holograms) {
             if (n instanceof ArmorStand) {
                 PersistentDataContainer container = n.getPersistentDataContainer();
@@ -261,10 +260,12 @@ public class HologramsService {
             }
         };
 
-        if (Bukkit.isPrimaryThread()) {
+        if (Slimefun.getFoliaLib().isFolia()) {
+            Slimefun.runSyncAtLocation(runnable, loc);
+        } else if (Bukkit.isPrimaryThread()) {
             runnable.run();
         } else {
-            Slimefun.runSync(runnable);
+            Slimefun.runSyncAtLocation(runnable, loc);
         }
     }
 

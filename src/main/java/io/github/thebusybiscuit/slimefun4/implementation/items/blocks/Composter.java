@@ -87,12 +87,12 @@ public class Composter extends SimpleSlimefunItem<BlockUseHandler> implements Re
                     if (output != null) {
                         FoliaTaskQueue tasks = new FoliaTaskQueue();
 
-                        tasks.thenRepeatEvery(30, 10, () -> {
+                        tasks.thenRepeatEvery(b.getLocation(), 30, 10, () -> {
                             Material material = input.getType().isBlock() ? input.getType() : Material.HAY_BLOCK;
                             b.getWorld().playEffect(b.getLocation(), Effect.STEP_SOUND, material);
                         });
 
-                        tasks.thenRun(20, () -> {
+                        tasks.thenRun(b.getLocation(), 20, () -> {
                             SoundEffect.COMPOSTER_COMPOST_SOUND.playFor(p);
                             pushItem(b, output.clone());
                         });
@@ -107,14 +107,16 @@ public class Composter extends SimpleSlimefunItem<BlockUseHandler> implements Re
     }
 
     private void pushItem(Block b, ItemStack output) {
-        Optional<Inventory> outputChest = findOutputChest(b, output);
+        Slimefun.getFoliaLib().getScheduler().runAtLocation(b.getLocation(), wrappedTask -> {
+            Optional<Inventory> outputChest = findOutputChest(b, output);
 
-        if (outputChest.isPresent()) {
-            outputChest.get().addItem(output);
-        } else {
-            Location loc = b.getRelative(BlockFace.UP).getLocation();
-            b.getWorld().dropItemNaturally(loc, output);
-        }
+            if (outputChest.isPresent()) {
+                outputChest.get().addItem(output);
+            } else {
+                Location loc = b.getRelative(BlockFace.UP).getLocation();
+                b.getWorld().dropItemNaturally(loc, output);
+            }
+        });
     }
 
     @Nonnull

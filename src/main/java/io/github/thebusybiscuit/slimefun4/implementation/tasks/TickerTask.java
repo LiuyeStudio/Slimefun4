@@ -146,7 +146,8 @@ public class TickerTask implements Runnable {
     public void start(@Nonnull Slimefun plugin) {
         this.tickRate = Slimefun.getCfg().getInt("URID.custom-ticker-delay");
 
-        Slimefun.getFoliaLib().getScheduler().runTimerAsync(this, 100L, 1L);
+        // dev: honour the configurable custom-ticker-delay instead of a hard-coded 1 tick
+        Slimefun.getFoliaLib().getScheduler().runTimerAsync(this, 100L, tickRate);
     }
 
     /**
@@ -429,8 +430,18 @@ public class TickerTask implements Runnable {
 
         try {
             if (entry.isSync()) {
-                // Bukkit 自带的 Watchdog 会检测超时，不需要我们处理
-                tickBlock(entry);
+                // Folia: block reads/writes must run on the region owning the block.
+                // Errors are reported inside the scheduled task, since the outer
+                // try/catch cannot observe exceptions from a deferred runnable.
+                Slimefun.runSyncAtLocation(
+                        () -> {
+                            try {
+                                tickBlock(entry);
+                            } catch (Exception | LinkageError x) {
+                                reportErrors(l, item, x);
+                            }
+                        },
+                        l);
             } else {
                 CompletableFuture.runAsync(
                                 () -> {

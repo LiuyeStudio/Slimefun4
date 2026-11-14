@@ -125,10 +125,12 @@ public class HologramProjector extends SlimefunItem implements HologramOwner {
                     return;
                 }
 
-                ArmorStand hologram = getArmorStand(projector, true);
-                hologram.setCustomName(ChatColors.color(message));
-                StorageCacheUtils.setData(projector.getLocation(), "text", hologram.getCustomName());
-                openEditor(pl, projector);
+                Slimefun.getFoliaLib().getScheduler().runAtLocation(pl.getLocation(), wrappedTask -> {
+                    ArmorStand hologram = getArmorStand(projector, true);
+                    hologram.setCustomName(ChatColors.color(message));
+                    StorageCacheUtils.setData(projector.getLocation(), "text", hologram.getCustomName());
+                    openEditor(pl, projector);
+                });
             });
 
             return false;
@@ -152,7 +154,7 @@ public class HologramProjector extends SlimefunItem implements HologramOwner {
             ArmorStand hologram = getArmorStand(projector, true);
             Location l = new Location(
                     projector.getWorld(), projector.getX() + 0.5, projector.getY() + offset, projector.getZ() + 0.5);
-            hologram.teleport(l);
+            hologram.teleportAsync(l);
 
             blockData.setData(OFFSET_PARAMETER, String.valueOf(offset));
             openEditor(pl, projector);

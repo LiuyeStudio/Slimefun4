@@ -92,8 +92,8 @@ public class MagicWorkbench extends AbstractCraftingTable {
 
             var waitCallback = false;
             if (sfItem instanceof SlimefunBackpack backpack) {
-                waitCallback =
-                        upgradeBackpack(p, inv, backpack, output, () -> startAnimation(p, b, inv, dispenser, output));
+                waitCallback = upgradeBackpack(
+                        p, b, inv, backpack, output, () -> startAnimation(p, b, inv, dispenser, output));
             }
 
             for (int j = 0; j < 9; j++) {
@@ -117,7 +117,7 @@ public class MagicWorkbench extends AbstractCraftingTable {
     private void startAnimation(Player p, Block b, Inventory dispInv, Block dispenser, ItemStack output) {
         for (int j = 0; j < 4; j++) {
             int current = j;
-            Slimefun.runSync(
+            Slimefun.runSyncAtLocation(
                     () -> {
                         p.getWorld().playEffect(b.getLocation(), Effect.MOBSPAWNER_FLAMES, 1);
                         p.getWorld().playEffect(b.getLocation(), Effect.ENDER_SIGNAL, 1);
@@ -129,7 +129,8 @@ public class MagicWorkbench extends AbstractCraftingTable {
                             handleCraftedItem(output, dispenser, dispInv);
                         }
                     },
-                    j * 20L);
+                    j * 20L,
+                    b.getLocation());
         }
     }
 

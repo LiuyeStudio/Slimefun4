@@ -52,7 +52,7 @@ public class SoulboundRune extends SimpleSlimefunItem<ItemDropHandler> {
                     return true;
                 }
 
-                Slimefun.runSync(() -> activate(p, item), 20L);
+                Slimefun.runSyncAtEntity(() -> activate(p, item), 20L, p);
 
                 return true;
             }
@@ -67,7 +67,7 @@ public class SoulboundRune extends SimpleSlimefunItem<ItemDropHandler> {
         }
 
         Location l = rune.getLocation();
-        Collection<Entity> entites = l.getWorld().getNearbyEntities(l, RANGE, RANGE, RANGE, this::findCompatibleItem);
+        Collection<Entity> entites = Slimefun.getNearbyEntities(l, RANGE, RANGE, RANGE, this::findCompatibleItem);
         Optional<Entity> optional = entites.stream().findFirst();
 
         if (optional.isPresent()) {
@@ -78,7 +78,7 @@ public class SoulboundRune extends SimpleSlimefunItem<ItemDropHandler> {
                 // This lightning is just an effect, it deals no damage.
                 l.getWorld().strikeLightningEffect(l);
 
-                Slimefun.runSync(
+                Slimefun.runSyncAtEntity(
                         () -> {
                             // Being sure entities are still valid and not picked up or whatsoever.
                             if (rune.isValid() && item.isValid() && itemStack.getAmount() == 1) {
@@ -97,7 +97,8 @@ public class SoulboundRune extends SimpleSlimefunItem<ItemDropHandler> {
                                 Slimefun.getLocalization().sendMessage(p, "messages.soulbound-rune.fail", true);
                             }
                         },
-                        10L);
+                        10L,
+                        p);
             } else {
                 Slimefun.getLocalization().sendMessage(p, "messages.soulbound-rune.fail", true);
             }

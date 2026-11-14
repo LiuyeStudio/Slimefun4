@@ -108,7 +108,7 @@ public class ArmorForge extends AbstractCraftingTable {
             for (int j = 0; j < 4; j++) {
                 int current = j;
 
-                Slimefun.runSync(
+                Slimefun.runSyncAtLocation(
                         () -> {
                             if (current < 3) {
                                 SoundEffect.ARMOR_FORGE_WORKING_SOUND.playAt(dispenser);
@@ -117,7 +117,8 @@ public class ArmorForge extends AbstractCraftingTable {
                                 handleCraftedItem(output, dispenser, inv);
                             }
                         },
-                        j * 20L);
+                        j * 20L,
+                        outputInv.getLocation());
             }
 
         } else {
