@@ -128,9 +128,11 @@ import me.mrCookieSlime.CSCoreLibPlugin.general.Inventory.MenuListener;
 import net.guizhanss.slimefun4.updater.AutoUpdateTask;
 import org.apache.commons.lang.Validate;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.Server;
 import org.bukkit.World;
 import org.bukkit.command.Command;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
 import org.bukkit.inventory.Recipe;
@@ -725,6 +727,7 @@ public final class Slimefun extends JavaPlugin implements SlimefunAddon, ICompat
         new SmithingTableListener(this);
         new VanillaCrafterListener(this);
         new JoinListener(this);
+        new SlimefunGuideRecipeListener(this);
 
         // Item-specific Listeners
         new CoolerListener(this, (Cooler) SlimefunItems.COOLER.getItem());
@@ -1184,6 +1187,125 @@ public final class Slimefun extends JavaPlugin implements SlimefunAddon, ICompat
         }
 
         return instance.getServer().getScheduler().runTask(instance, runnable);
+    }
+
+    /**
+     * 在拥有给定 {@link Location} 所在区域的线程上调度一个任务（Folia 安全）。
+     * 这是读取或修改方块/方块状态唯一合法的线程。<strong>仅限 Slimefun 自身，插件不可用。</strong>
+     *
+     * @param location 决定在哪个区域运行的 {@link Location}
+     * @param runnable 要执行的 {@link Runnable}
+     */
+    public static void runAtRegion(@Nonnull Location location, @Nonnull Runnable runnable) {
+        runAtRegion(location, runnable, 0L);
+    }
+
+    /**
+     * 在拥有给定 {@link Location} 所在区域的线程上调度一个延迟任务（Folia 安全）。
+     * <strong>仅限 Slimefun 自身，插件不可用。</strong>
+     *
+     * @param location 决定在哪个区域运行的 {@link Location}
+     * @param runnable 要执行的 {@link Runnable}
+     * @param delay    延迟（tick）
+     */
+    public static void runAtRegion(@Nonnull Location location, @Nonnull Runnable runnable, long delay) {
+        Validate.notNull(location, "Cannot run at a null location");
+        Validate.notNull(runnable, "Cannot run null");
+        Validate.isTrue(delay >= 0, "The delay cannot be negative");
+
+        // 单元测试中立即执行
+        if (getMinecraftVersion() == MinecraftVersion.UNIT_TEST) {
+            runnable.run();
+            return;
+        }
+
+        if (instance == null || !instance.isEnabled()) {
+            return;
+        }
+
+        /*
+         * 世界可能已卸载（例如持久化位置所在世界不再加载），此时没有可用区域，
+         * 直接放弃而不是抛出 NullPointerException。
+         */
+        if (location.getWorld() == null) {
+            return;
+        }
+
+        if (delay <= 0) {
+            // 已在拥有该区域的线程上：立即执行以保持原有时序
+            try {
+                if (Bukkit.isOwnedByCurrentRegion(location)) {
+                    runnable.run();
+                    return;
+                }
+
+                Bukkit.getRegionScheduler().run(instance, location, task -> runnable.run());
+            } catch (IllegalStateException x) {
+                // 区块/世界已卸载时区域调度器会拒绝任务
+            }
+            return;
+        }
+
+        try {
+            Bukkit.getRegionScheduler().runDelayed(instance, location, task -> runnable.run(), delay);
+        } catch (IllegalStateException x) {
+            // 区块/世界已卸载
+        }
+    }
+
+    /**
+     * 在拥有给定 {@link Entity} 的区域的线程上调度一个任务（Folia 安全）。
+     * 这是读取或修改实体、其背包、药水效果或向其发送消息唯一合法的线程。
+     * <strong>仅限 Slimefun 自身，插件不可用。</strong>
+     *
+     * @param entity   决定在哪个区域运行的 {@link Entity}
+     * @param runnable 要执行的 {@link Runnable}
+     */
+    public static void runAtEntity(@Nonnull Entity entity, @Nonnull Runnable runnable) {
+        runAtEntity(entity, runnable, 0L);
+    }
+
+    /**
+     * 在拥有给定 {@link Entity} 的区域的线程上调度一个延迟任务（Folia 安全）。
+     * <strong>仅限 Slimefun 自身，插件不可用。</strong>
+     *
+     * @param entity   决定在哪个区域运行的 {@link Entity}
+     * @param runnable 要执行的 {@link Runnable}
+     * @param delay    延迟（tick）
+     */
+    public static void runAtEntity(@Nonnull Entity entity, @Nonnull Runnable runnable, long delay) {
+        Validate.notNull(entity, "Cannot run at a null entity");
+        Validate.notNull(runnable, "Cannot run null");
+        Validate.isTrue(delay >= 0, "The delay cannot be negative");
+
+        if (getMinecraftVersion() == MinecraftVersion.UNIT_TEST) {
+            runnable.run();
+            return;
+        }
+
+        if (instance == null || !instance.isEnabled()) {
+            return;
+        }
+
+        if (delay <= 0) {
+            try {
+                if (Bukkit.isOwnedByCurrentRegion(entity)) {
+                    runnable.run();
+                    return;
+                }
+
+                entity.getScheduler().run(instance, task -> runnable.run(), null);
+            } catch (IllegalStateException x) {
+                // 实体已移除
+            }
+            return;
+        }
+
+        try {
+            entity.getScheduler().runDelayed(instance, task -> runnable.run(), null, delay);
+        } catch (IllegalStateException x) {
+            // 实体已移除
+        }
     }
 
     @Nonnull

@@ -57,6 +57,9 @@ public class SlimefunConfigManager {
     private boolean showHiddenItemGroupsInSearch;
 
     @Getter
+    private boolean guideCraftingEnabled;
+
+    @Getter
     private boolean autoUpdate;
 
     @Getter
@@ -119,6 +122,7 @@ public class SlimefunConfigManager {
             useMoneyUnlock = pluginConfig.getBoolean("researches.use-money-unlock");
             showVanillaRecipes = pluginConfig.getBoolean("guide.show-vanilla-recipes");
             showHiddenItemGroupsInSearch = pluginConfig.getBoolean("guide.show-hidden-item-groups-in-search");
+            guideCraftingEnabled = pluginConfig.getBoolean("guide.crafting");
             autoUpdate = pluginConfig.getBoolean("options.auto-update");
             bypassEnvironmentCheck = pluginConfig.getBoolean("options.bypass-environment-check");
             bypassItemLengthCheck = pluginConfig.getBoolean("options.bypass-item-length-check");

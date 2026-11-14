@@ -47,6 +47,8 @@ guide:
   receive-on-first-join: true
   # 是否在搜索中显示隐藏物品
   show-hidden-item-groups-in-search: false
+  # 是否允许用 书 + 粘液球 合成粘液科技指南（Folia 版新增）
+  crafting: true
 
 researches:
   # 是否允许创造模式玩家免费解锁研究
