@@ -156,8 +156,6 @@ guide:
       - '&7并且由玩家社区维护.'
       - '&7在这几年中, 一共有 &e%contributors% &7人'
       - '&7为 Slimefun 做出了贡献.'
-      - '&7Folia 适配: &6核动豆 (NukeBean) &7/ &bLiuyeStudio'
-      - '&7CN Folia 整合: &acyantangerine (Elvin)'
     roles:
       developer: '&6开发者'
       wiki: '&3Wiki 编辑者'
