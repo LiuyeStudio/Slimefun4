@@ -213,6 +213,25 @@ Slimefun 4 是一个以 [GNU GPLv3 协议](https://github.com/Slimefun/Slimefun4
 已经有超过 100 人对这个项目做出了贡献，这些人真是太棒了。  
 我们鼓励通过提交 PR 的方式为 Slimefun 4 做出贡献，你的贡献将会使插件保持活力 <3。
 
+## :sparkles: Folia 适配来源与鸣谢
+
+本分支（`folia-integration`）的 Folia 支持并非从零实现，而是在以下项目的基础上整合、修复而来。
+按 [GNU GPLv3](LICENSE) 的要求，在此保留原始归属声明；本分支的修改同样以 GPLv3 发布。
+
+* **[核动豆（NukeBean）](https://github.com/nukebean)** 与 **[LiuyeStudio / 流叶科技工作室](https://github.com/LiuyeStudio)**
+  — [LiuyeStudio/Slimefun4-Folia](https://github.com/LiuyeStudio/Slimefun4-Folia) 的 Folia 区域化调度适配、
+  任务模型重构与持续维护。本分支的 `FoliaTaskQueue`、`PlayerTaskRegistry`、`ItemDataRecovery`、
+  `LegacyEnchantmentDataFixer`、`LegacyItemStackDeserializer`、`SlimefunGuideRecipeListener`
+  等文件源自该项目，并针对汉化版做了适配修改。
+* **[neokoni](https://github.com/neokoni)**（[Craft233MC/Slimefun4](https://github.com/Craft233MC/Slimefun4)）
+  — 另一条 Folia 适配主线，其 `dev` 分支通过 git 合并引入本分支；背包 / 冷却器多线程修复、
+  `runSyncAtEntity` / `runSyncAtLocation` 区域安全调度等来自这里。
+* **[cyantangerine (Elvin)](https://github.com/cyantangerine)**
+  — `folia-integration` 分支的移植整合、冲突解决、Folia 26.3 兼容性修复与实机验证。
+
+上游 [Slimefun 4](https://github.com/Slimefun/Slimefun4) 与
+[Slimefun4 汉化版](https://github.com/SlimefunGuguProject/Slimefun4) 的原始版权声明与许可条款继续有效。
+
 ## :exclamation: 免责声明
 
 Slimefun4 使用多种系统收集使用数据，以及使用自动更新让你知晓关于这个项目的最新信息。

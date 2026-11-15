@@ -78,6 +78,11 @@ public class GitHubService {
      * the usual methods.
      */
     private void addDefaultContributors() {
+        // Folia port provenance (see README.md -> "Folia 适配来源与鸣谢")
+        addContributor("nukebean", "https://github.com/nukebean", "&6Folia 适配 &7(核动豆)", 0);
+        addContributor("LiuyeStudio", "https://github.com/LiuyeStudio", "&bLiuyeStudio &7(流叶科技工作室)", 0);
+        addContributor("cyantangerine", "https://github.com/cyantangerine", "&aCN Folia 整合 &7(Elvin)", 0);
+
         // Artists
         addContributor("Fuffles_", "&dArtist");
         addContributor("IMS_Art", "https://github.com/IAmSorryArt", "&dArtist", 0);

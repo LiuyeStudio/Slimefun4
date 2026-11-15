@@ -31,6 +31,14 @@ import org.bukkit.Registry;
  * 随后 {@code ConfigurationSerialization.deserializeObject} 会吞掉异常并返回 null, 最终让整个物品变成空气。
  * 这里在交给 Paper 之前把这些无法解析的附魔条目从 NBT 中剔除, 让物品(以及其它仍然有效的附魔)可以正常读取,
  * 并把被剔除的附魔写进日志。
+ * <p>
+ * Folia 适配实现源自 <a href="https://github.com/LiuyeStudio/Slimefun4-Folia">LiuyeStudio/Slimefun4-Folia</a>
+ * (GNU GPLv3)。原作者：核动豆 (NukeBean) — Folia 区域化调度适配、任务模型重构；
+ * LiuyeStudio (流叶科技工作室) — 项目维护与发布。
+ * 本文件由 cyantangerine (Elvin) 移植到 Slimefun4-CN / folia-integration 分支并作适配修改。
+ *
+ * @author NukeBean (Folia 适配)
+ * @author cyantangerine (Elvin) (CN 整合)
  */
 final class LegacyEnchantmentDataFixer {
 

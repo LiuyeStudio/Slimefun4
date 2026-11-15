@@ -16,6 +16,14 @@ import org.bukkit.inventory.ItemStack;
  * {@code minecraft:enchantments} 之类的组件), 这些组件最终会交给 Paper 的
  * {@code MCUtil.deserializeItem} 解析。只要其中有任何一个附魔不在附魔注册表里, 整个物品就会解析失败并变成空气。
  * 这里在每个组件上做一次过滤, 把无法解析的附魔剔除掉, 再交回 {@link ItemStack#deserialize(Map)}。
+ * <p>
+ * Folia 适配实现源自 <a href="https://github.com/LiuyeStudio/Slimefun4-Folia">LiuyeStudio/Slimefun4-Folia</a>
+ * (GNU GPLv3)。原作者：核动豆 (NukeBean) — Folia 区域化调度适配、任务模型重构；
+ * LiuyeStudio (流叶科技工作室) — 项目维护与发布。
+ * 本文件由 cyantangerine (Elvin) 移植到 Slimefun4-CN / folia-integration 分支并作适配修改。
+ *
+ * @author NukeBean (Folia 适配)
+ * @author cyantangerine (Elvin) (CN 整合)
  */
 public final class LegacyItemStackDeserializer implements ConfigurationSerializable {
 

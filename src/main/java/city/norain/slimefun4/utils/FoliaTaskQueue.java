@@ -24,7 +24,14 @@ import org.bukkit.plugin.Plugin;
  * combined with {@code execute(plugin)}. When a step carries its own location it takes precedence
  * over the default, which keeps piston animations correct even when they span region borders.
  *
- * @author Slimefun4
+ * <p>
+ * Folia 适配实现源自 <a href="https://github.com/LiuyeStudio/Slimefun4-Folia">LiuyeStudio/Slimefun4-Folia</a>
+ * (GNU GPLv3)。原作者：核动豆 (NukeBean) — Folia 区域化调度适配、任务模型重构；
+ * LiuyeStudio (流叶科技工作室) — 项目维护与发布。
+ * 本文件由 cyantangerine (Elvin) 移植到 Slimefun4-CN / folia-integration 分支并作适配修改。
+ *
+ * @author NukeBean (Folia 适配)
+ * @author cyantangerine (Elvin) (CN 整合)
  */
 public final class FoliaTaskQueue {
 
