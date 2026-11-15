@@ -104,6 +104,11 @@ class BackpackCommand extends SubCommand {
                     }
 
                     @Override
+                    public Player getEntityAnchor() {
+                        return p;
+                    }
+
+                    @Override
                     public void onResult(Set<PlayerBackpack> result) {
                         if (!p.isOnline()) {
                             return;

@@ -60,7 +60,9 @@ public class SlimefunBowListener implements Listener {
 
     @EventHandler
     public void onArrowHit(ProjectileHitEvent e) {
-        Slimefun.runSync(
+        // 读取箭实体状态必须在该实体所属的区域线程上执行。
+        Slimefun.runAtEntity(
+                e.getEntity(),
                 () -> {
                     if (e.getEntity().isValid() && e.getEntity() instanceof Arrow) {
                         projectiles.remove(e.getEntity().getUniqueId());

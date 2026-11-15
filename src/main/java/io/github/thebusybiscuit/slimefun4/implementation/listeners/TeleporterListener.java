@@ -86,6 +86,12 @@ public class TeleporterListener implements Listener {
                                 }
 
                                 @Override
+                                public Player getEntityAnchor() {
+                                    // 打开传送器菜单属于玩家操作，必须回到玩家所属的区域线程。
+                                    return p;
+                                }
+
+                                @Override
                                 public void onResult(SlimefunBlockData result) {
                                     teleport(blockData.getData("owner"), p, block);
                                 }

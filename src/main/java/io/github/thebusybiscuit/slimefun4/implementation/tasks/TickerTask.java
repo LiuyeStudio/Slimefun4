@@ -370,7 +370,8 @@ public class TickerTask implements Runnable {
 
         if (entry.isSync()) {
             Slimefun.getProfiler().scheduleEntries(1);
-            Slimefun.runSync(() -> {
+            // 同步 ticker 会读写该方块与周围区块，必须在该位置所属的区域线程上执行。
+            Slimefun.runAtRegion(l, () -> {
                 long timestamp = profiling ? System.nanoTime() : 0;
                 try {
                     // Bukkit 自带的 Watchdog 会检测超时，不需要我们处理

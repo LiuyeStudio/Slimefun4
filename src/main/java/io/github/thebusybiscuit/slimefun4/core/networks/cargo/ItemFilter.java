@@ -88,6 +88,12 @@ class ItemFilter implements Predicate<ItemStack> {
             isLoading = true;
             Slimefun.getDatabaseManager().getBlockDataController().loadDataAsync(blockData, new IAsyncReadCallback<>() {
                 @Override
+                public boolean runOnMainThread() {
+                    // update() 会读取方块菜单的 Bukkit Inventory，不能在数据库线程上执行。
+                    return true;
+                }
+
+                @Override
                 public void onResult(ASlimefunDataContainer result) {
                     update(blockData);
                     isLoading = false;

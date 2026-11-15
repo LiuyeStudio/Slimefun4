@@ -283,24 +283,36 @@ public class HologramsService {
     public boolean removeHologram(@Nonnull Location loc) {
         Validate.notNull(loc, "Location cannot be null");
 
-        if (Bukkit.isPrimaryThread()) {
-            try {
-                Hologram hologram = getHologram(loc, false);
+        if (Slimefun.getFoliaLib().isFolia()) {
+            // Folia 的全局区域线程也会被 isPrimaryThread() 判定为 true，但它并不拥有
+            // 该位置上的 ArmorStand。与 setHologramLabel 一致，统一按位置派发。
+            // 由于是异步移除，无法同步返回结果；调用方（HologramOwner）只忽略该返回值。
+            Slimefun.runSyncAtLocation(() -> removeHologramInternal(loc), loc);
+            return false;
+        }
 
-                if (hologram != null) {
-                    cache.remove(new BlockPosition(loc));
-                    hologram.remove();
-                    return true;
-                } else {
-                    return false;
-                }
-            } catch (Exception | LinkageError x) {
-                Slimefun.logger().log(Level.SEVERE, "Hologram located at {0}", new BlockPosition(loc));
-                Slimefun.logger().log(Level.SEVERE, "Something went wrong while trying to remove this hologram", x);
-                return false;
-            }
+        if (Bukkit.isPrimaryThread()) {
+            return removeHologramInternal(loc);
         } else {
             throw new UnsupportedOperationException("You cannot remove a hologram asynchronously.");
+        }
+    }
+
+    private boolean removeHologramInternal(@Nonnull Location loc) {
+        try {
+            Hologram hologram = getHologram(loc, false);
+
+            if (hologram != null) {
+                cache.remove(new BlockPosition(loc));
+                hologram.remove();
+                return true;
+            } else {
+                return false;
+            }
+        } catch (Exception | LinkageError x) {
+            Slimefun.logger().log(Level.SEVERE, "Hologram located at {0}", new BlockPosition(loc));
+            Slimefun.logger().log(Level.SEVERE, "Something went wrong while trying to remove this hologram", x);
+            return false;
         }
     }
 

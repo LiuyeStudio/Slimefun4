@@ -566,7 +566,8 @@ public abstract class Reactor extends AbstractEnergyProvider
         }
 
         if (!port.isDataLoaded()) {
-            StorageCacheUtils.executeAfterLoad(port, () -> updateInventory(menu, l.getBlock()), false);
+            // 回调会读写方块与物品栏，必须在区域线程上执行。
+            StorageCacheUtils.executeAfterLoad(port, () -> updateInventory(menu, l.getBlock()), true);
             return null;
         }
 

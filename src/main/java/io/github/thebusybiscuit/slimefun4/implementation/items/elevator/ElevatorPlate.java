@@ -235,7 +235,8 @@ public class ElevatorPlate extends SimpleSlimefunItem<BlockUseHandler> {
 
     @ParametersAreNonnullByDefault
     private void teleport(Player player, ElevatorFloor floor) {
-        Slimefun.runSync(() -> {
+        // 读取玩家位置 / 传送 / 发送标题都属于玩家实体操作，必须在实体线程上执行。
+        Slimefun.runSyncAtEntity(() -> {
             users.add(player.getUniqueId());
 
             float yaw = player.getEyeLocation().getYaw() + 180;
@@ -258,7 +259,7 @@ public class ElevatorPlate extends SimpleSlimefunItem<BlockUseHandler> {
                     player.sendTitle(ChatColor.WHITE + ChatColors.color(floor.getName()), null, 20, 60, 20);
                 }
             });
-        });
+        }, player);
     }
 
     @ParametersAreNonnullByDefault

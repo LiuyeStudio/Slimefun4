@@ -12,6 +12,7 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import org.bukkit.*;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
+import org.bukkit.entity.Player;
 
 public class ClearDataCommand extends SubCommand {
     public static final List<String> ValidClearTypes = List.of("block", "oil");
@@ -53,13 +54,7 @@ public class ClearDataCommand extends SubCommand {
                         if (cleartype.equals("block")) {
                             controller.removeAllDataInWorldAsync(
                                     world,
-                                    () -> Slimefun.runSync(() -> Slimefun.getLocalization()
-                                            .sendMessage(
-                                                    sender,
-                                                    "commands.cleardata.success",
-                                                    true,
-                                                    msg -> msg.replace("{0}", world.getName())
-                                                            .replace("{1}", block))));
+                                    () -> notifySuccess(sender, world.getName(), block));
                         } else if (cleartype.equals("oil")) {
                             GEOResource oilresource = null;
                             for (GEOResource resource :
@@ -73,13 +68,7 @@ public class ClearDataCommand extends SubCommand {
                             controller.removeFromAllChunkInWorldAsync(
                                     world,
                                     oilresource.getKey().toString().replace(":", "-"),
-                                    () -> Slimefun.runSync(() -> Slimefun.getLocalization()
-                                            .sendMessage(
-                                                    sender,
-                                                    "commands.cleardata.success",
-                                                    true,
-                                                    msg -> msg.replace("{0}", world.getName())
-                                                            .replace("{1}", oil))));
+                                    () -> notifySuccess(sender, world.getName(), oil));
                         }
                     }
                 }
@@ -96,6 +85,27 @@ public class ClearDataCommand extends SubCommand {
                             msg -> msg.replace("%usage%", "/sf cleardata <World> <Type>"));
         } else {
             Slimefun.getLocalization().sendMessage(sender, "messages.no-permission", true);
+        }
+    }
+
+    /**
+     * 数据库异步清理完成后给命令发送者回执。Folia 下若发送者是玩家，
+     * 必须回到该玩家所属的实体线程，而不是全局区域线程。
+     */
+    private void notifySuccess(CommandSender sender, String worldName, String type) {
+        Runnable task = () -> Slimefun.getLocalization()
+                .sendMessage(
+                        sender,
+                        "commands.cleardata.success",
+                        true,
+                        msg -> msg.replace("{0}", worldName).replace("{1}", type));
+
+        if (sender instanceof Player player
+                && Slimefun.getFoliaLib() != null
+                && Slimefun.getFoliaLib().isFolia()) {
+            Slimefun.runSyncAtEntity(task, player);
+        } else {
+            Slimefun.runSync(task);
         }
     }
 

@@ -549,7 +549,36 @@ public class BlockDataController extends ADataController {
      * @param callback operation when block data fetched {@link IAsyncReadCallback}
      */
     public void getBlockDataAsync(Location l, IAsyncReadCallback<SlimefunBlockData> callback) {
-        scheduleReadTask(() -> invokeCallback(callback, getBlockData(l)));
+        scheduleReadTask(() -> invokeCallback(callback, getBlockData(l), l));
+    }
+
+    /**
+     * 推断某个数据容器所属的 Folia 区域锚点，供主线程回调派发使用。
+     */
+    @Nullable
+    private static Location resolveRegionAnchor(@Nullable ASlimefunDataContainer container) {
+        if (container instanceof SlimefunBlockData blockData) {
+            return blockData.getLocation();
+        }
+
+        if (container instanceof SlimefunUniversalBlockData universalBlock) {
+            try {
+                BlockPosition present = universalBlock.getLastPresent();
+                return present == null ? null : present.toLocation();
+            } catch (RuntimeException e) {
+                // 位置数据损坏时不应阻断回调，退化为全局同步调度。
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * 把区块换算成其内部的一个位置，用于按区域派发回调。
+     */
+    private static Location chunkAnchor(@Nonnull Chunk chunk) {
+        return new Location(chunk.getWorld(), chunk.getX() << 4, 0, chunk.getZ() << 4);
     }
 
     /**
@@ -1053,21 +1082,24 @@ public class BlockDataController extends ADataController {
                 loadUniversalData(uniData);
             }
 
-            invokeCallback(callback, container);
+            invokeCallback(callback, container, resolveRegionAnchor(container));
         });
     }
 
     public void loadBlockDataAsync(SlimefunBlockData blockData, IAsyncReadCallback<SlimefunBlockData> callback) {
         scheduleReadTask(() -> {
             loadBlockData(blockData);
-            invokeCallback(callback, blockData);
+            invokeCallback(callback, blockData, blockData.getLocation());
         });
     }
 
     public void loadBlockDataAsync(
             List<SlimefunBlockData> blockDataList, IAsyncReadCallback<List<SlimefunBlockData>> callback) {
-        scheduleReadTask(() -> blockDataList.forEach(this::loadBlockData));
-        invokeCallback(callback, blockDataList);
+        scheduleReadTask(() -> {
+            blockDataList.forEach(this::loadBlockData);
+            Location anchor = blockDataList.isEmpty() ? null : blockDataList.get(0).getLocation();
+            invokeCallback(callback, blockDataList, anchor);
+        });
     }
 
     @ParametersAreNonnullByDefault
@@ -1172,7 +1204,7 @@ public class BlockDataController extends ADataController {
             SlimefunUniversalData uniData, IAsyncReadCallback<SlimefunUniversalData> callback) {
         scheduleReadTask(() -> {
             loadUniversalData(uniData);
-            invokeCallback(callback, uniData);
+            invokeCallback(callback, uniData, resolveRegionAnchor(uniData));
         });
     }
 
@@ -1193,7 +1225,7 @@ public class BlockDataController extends ADataController {
     }
 
     public void getChunkDataAsync(Chunk chunk, IAsyncReadCallback<SlimefunChunkData> callback) {
-        scheduleReadTask(() -> invokeCallback(callback, getChunkData(chunk)));
+        scheduleReadTask(() -> invokeCallback(callback, getChunkData(chunk), chunkAnchor(chunk)));
     }
 
     public void saveAllBlockInventories() {

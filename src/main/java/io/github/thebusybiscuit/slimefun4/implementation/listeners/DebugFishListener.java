@@ -24,6 +24,7 @@ import java.util.Set;
 import java.util.logging.Level;
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -156,6 +157,12 @@ public class DebugFishListener implements Listener {
                                     @Override
                                     public boolean runOnMainThread() {
                                         return true;
+                                    }
+
+                                    @Override
+                                    public Location getRegionAnchor() {
+                                        // sendInfo 会读取方块 / 区块 / 能源网络，必须在该方块所属区域执行。
+                                        return b.getLocation();
                                     }
 
                                     @Override

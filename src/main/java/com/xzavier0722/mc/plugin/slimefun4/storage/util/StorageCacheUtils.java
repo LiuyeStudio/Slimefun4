@@ -54,8 +54,9 @@ public class StorageCacheUtils {
             return false;
         }
 
-        return TaskUtil.runSyncMethod(
-                () -> Slimefun.getBlockDataService().getUniversalDataUUID(block).isPresent());
+        // 超时时 runSyncMethod 会返回 null，用 Boolean.TRUE.equals 兜底，避免拆箱 NPE。
+        return Boolean.TRUE.equals(TaskUtil.runSyncMethod(
+                () -> Slimefun.getBlockDataService().getUniversalDataUUID(block).isPresent(), l));
     }
 
     @ParametersAreNonnullByDefault
@@ -348,6 +349,12 @@ public class StorageCacheUtils {
             @Override
             public boolean runOnMainThread() {
                 return runOnMainThread;
+            }
+
+            @Override
+            public Location getRegionAnchor() {
+                // 回调常常要移除方块 / 访问区块，必须派发到该方块所属的区域线程。
+                return data.getLocation();
             }
 
             @Override

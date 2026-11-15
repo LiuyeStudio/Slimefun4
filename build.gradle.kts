@@ -3,6 +3,7 @@ import com.gorylenko.GitPropertiesPluginExtension
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
 import org.gradle.language.jvm.tasks.ProcessResources
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -14,7 +15,9 @@ plugins {
     alias(libs.plugins.git.properties)
 }
 
-group = "com.github.slimefun"
+val releaseDate: String = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
+
+group = "com.github.slimefunce"
 version = resolveVersion()
 
 java {
@@ -140,7 +143,7 @@ tasks.named("sourcesJar") {
 }
 
 tasks.named<ShadowJar>("shadowJar") {
-    archiveBaseName.set("Slimefun")
+    archiveBaseName.set("SlimefunCE-CN")
     archiveVersion.set(project.version.toString())
     archiveClassifier.set("")
     relocate("io.github.bakedlibs.dough", "io.github.thebusybiscuit.slimefun4.libraries.dough")
@@ -153,6 +156,11 @@ tasks.named<ShadowJar>("shadowJar") {
     }*/
 }
 
+tasks.named<Jar>("sourcesJar") {
+    archiveBaseName.set("SlimefunCE-CN")
+    archiveVersion.set(project.version.toString())
+}
+
 tasks.build {
     dependsOn(tasks.named("shadowJar"))
 }
@@ -163,20 +171,23 @@ publishing {
             artifact(tasks.named("shadowJar"))
             artifact(tasks.named("sourcesJar"))
             groupId = project.group.toString()
-            artifactId = "Slimefun"
+            artifactId = "SlimefunCE-CN"
             version = project.version.toString()
         }
     }
     repositories {
         maven {
-            url = if (project.version.toString().contains("SNAPSHOT")) {
-                uri("https://repo.neokoni.ink/snapshots")
-            } else {
-                uri("https://repo.neokoni.ink/releases")
-            }
-            credentials {
-                username = System.getenv("MAVEN_ACCOUNT")
-                password = System.getenv("MAVEN_PASSWORD")
+            // CodeMC 按用户隔离的单仓库:{username} 为登录 CodeMC 的 GitHub 用户名(小写)
+            val codemcUsername: String? by project
+            url = uri("https://repo.codemc.io/repository/${codemcUsername ?: "YOUR_USERNAME"}/")
+            // 凭证来自环境变量,不硬编码;优先 CodeMC 约定名,回退到项目既有 MAVEN_ACCOUNT/MAVEN_PASSWORD
+            val mavenUsername = System.getenv("GRADLE_PROJECT_MAVEN_USERNAME") ?: System.getenv("MAVEN_ACCOUNT")
+            val mavenPassword = System.getenv("GRADLE_PROJECT_MAVEN_PASSWORD") ?: System.getenv("MAVEN_PASSWORD")
+            if (mavenUsername != null && mavenPassword != null) {
+                credentials {
+                    username = mavenUsername
+                    password = mavenPassword
+                }
             }
         }
     }
@@ -184,5 +195,5 @@ publishing {
 
 fun Project.resolveVersion(): String {
     findProperty("projectVersion")?.toString()?.takeIf { it.isNotBlank() }?.let { return it }
-    return "DEV-SNAPSHOT"
+    return "Snapshot-$releaseDate"
 }

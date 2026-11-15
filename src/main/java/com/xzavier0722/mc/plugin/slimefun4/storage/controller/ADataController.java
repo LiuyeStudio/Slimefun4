@@ -19,9 +19,12 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.annotation.Nullable;
 import javax.annotation.OverridingMethodsMustInvokeSuper;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.bukkit.Location;
+import org.bukkit.entity.Entity;
 
 /**
  * {@link ADataController} 是 Slimefun 数据库控制器的抽象类，
@@ -235,6 +238,23 @@ public abstract class ADataController {
     }
 
     protected <T> void invokeCallback(IAsyncReadCallback<T> callback, T result) {
+        invokeCallback(callback, result, callback == null ? null : callback.getRegionAnchor());
+    }
+
+    /**
+     * 派发一个异步读取回调。
+     * <p>
+     * Folia 的全局区域线程不拥有任何区块或实体，{@link Slimefun#runSync(Runnable)} 会把回调放到
+     * 该线程上；一旦回调里出现 {@code Location#getChunk()}、方块读写或玩家操作就会抛
+     * {@code IllegalStateException}（例如破坏尚未加载完数据的 Slimefun 方块）。因此 Folia 下
+     * 优先按实体锚点、其次按位置锚点派发到真正拥有该对象的线程。
+     *
+     * @param callback     回调
+     * @param result       读取结果
+     * @param regionAnchor 回调将要访问的位置锚点（由数据控制器或回调自身提供）
+     */
+    protected <T> void invokeCallback(
+            IAsyncReadCallback<T> callback, T result, @Nullable Location regionAnchor) {
         if (callback == null) {
             return;
         }
@@ -247,7 +267,22 @@ public abstract class ADataController {
         }
 
         if (callback.runOnMainThread()) {
-            Slimefun.runSync(cb);
+            boolean folia = Slimefun.getFoliaLib() != null && Slimefun.getFoliaLib().isFolia();
+            Entity entityAnchor = folia ? callback.getEntityAnchor() : null;
+            Location anchor = regionAnchor != null ? regionAnchor : callback.getRegionAnchor();
+
+            if (entityAnchor != null) {
+                Slimefun.runAtEntity(entityAnchor, cb);
+            } else if (anchor != null && anchor.getWorld() != null) {
+                // 非 Folia 平台同样保持原来的 runSync 语义，避免改变 Paper 上的行为。
+                if (folia) {
+                    Slimefun.runAtRegion(anchor, cb);
+                } else {
+                    Slimefun.runSync(cb);
+                }
+            } else {
+                Slimefun.runSync(cb);
+            }
         } else {
             callbackExecutor.submit(cb);
         }

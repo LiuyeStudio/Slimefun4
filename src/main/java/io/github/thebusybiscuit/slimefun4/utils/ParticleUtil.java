@@ -108,12 +108,14 @@ public class ParticleUtil {
 
     public static void highlightBlock(@NotNull Player player, @NotNull Location location, int shrinkTimes) {
         for (int i = 0; i < shrinkTimes; i++) {
-            Slimefun.runSync(
+            // 高亮方块会读取 Block / 生成粒子，必须在该位置所属的区域线程上执行。
+            Slimefun.runAtRegion(
+                    location,
                     () -> {
                         drawLineFrom(player.getEyeLocation().clone().add(0D, -0.5D, 0D), location);
                         highlightBlock(location);
                     },
-                    20L * i);
+                    Math.max(1L, 20L * i));
         }
     }
 

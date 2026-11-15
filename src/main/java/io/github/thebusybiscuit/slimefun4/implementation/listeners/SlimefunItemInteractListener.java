@@ -163,6 +163,11 @@ public class SlimefunItemInteractListener implements Listener {
                                     }
 
                                     @Override
+                                    public Player getEntityAnchor() {
+                                        return p;
+                                    }
+
+                                    @Override
                                     public void onResult(SlimefunBlockData result) {
                                         if (!p.isOnline()) {
                                             return;
@@ -198,6 +203,11 @@ public class SlimefunItemInteractListener implements Listener {
                                     @Override
                                     public boolean runOnMainThread() {
                                         return true;
+                                    }
+
+                                    @Override
+                                    public Player getEntityAnchor() {
+                                        return p;
                                     }
 
                                     @Override

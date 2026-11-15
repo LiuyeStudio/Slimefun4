@@ -18,6 +18,7 @@ import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.stream.IntStream;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 import me.mrCookieSlime.Slimefun.Objects.handlers.BlockTicker;
 import org.bukkit.Bukkit;
@@ -61,10 +62,26 @@ public class ErrorReport<T extends Throwable> {
      */
     @ParametersAreNonnullByDefault
     public ErrorReport(T throwable, SlimefunAddon addon, Consumer<PrintStream> printer) {
+        this(throwable, addon, printer, null);
+    }
+
+    /**
+     * Folia 版本：带位置信息的报告会读取 {@code Location#getBlock()} / 区块数据，
+     * 必须在该位置所属的区域线程上生成，不能丢给全局区域线程。
+     */
+    @ParametersAreNonnullByDefault
+    public ErrorReport(T throwable, SlimefunAddon addon, Consumer<PrintStream> printer, @Nullable Location location) {
         this.throwable = throwable;
         this.addon = addon;
 
-        Slimefun.runSync(() -> print(printer));
+        if (location != null
+                && location.getWorld() != null
+                && Slimefun.getFoliaLib() != null
+                && Slimefun.getFoliaLib().isFolia()) {
+            Slimefun.runSyncAtLocation(() -> print(printer), location);
+        } else {
+            Slimefun.runSync(() -> print(printer));
+        }
     }
 
     /**
@@ -137,7 +154,7 @@ public class ErrorReport<T extends Throwable> {
                 blockData.getAllData().forEach((k, v) -> stream.println("    " + k + ": " + v));
             }
             stream.println();
-        });
+        }, l);
     }
 
     /**

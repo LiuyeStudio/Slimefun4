@@ -206,9 +206,11 @@ public class BackpackListener implements Listener {
     public void openBackpack(Player p, ItemStack item, SlimefunBackpack backpack) {
         if (backpack.canUse(p, true)
                 && !PlayerProfile.get(p, profile -> {
-                    // PlayerProfile#get 的回调可能落在数据库读取线程上，而后续逻辑全都要碰玩家。
-                    // 先切回玩家所属的区域线程（Folia）/主线程（Paper）再继续。
-                    if (Bukkit.isPrimaryThread()) {
+                    // PlayerProfile#get 的回调可能落在数据库读取线程或 Folia 全局区域线程上，
+                    // 两者都不拥有玩家。Folia 下一律交给玩家所属的实体调度器。
+                    if (Slimefun.getFoliaLib() != null && Slimefun.getFoliaLib().isFolia()) {
+                        Slimefun.runSyncAtEntity(() -> openBackpackInternal(p, item, backpack), 1L, p);
+                    } else if (Bukkit.isPrimaryThread()) {
                         openBackpackInternal(p, item, backpack);
                     } else {
                         Slimefun.runSyncAtEntity(() -> openBackpackInternal(p, item, backpack), 0, p);
