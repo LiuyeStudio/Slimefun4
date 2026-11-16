@@ -1,38 +1,335 @@
-name: Publish to CodeMC
+name: Build, Release & Publish to Guizhan Resources
+
+# 自动构建 SlimefunCE-CN（Gradle shadowJar），一次构建同时发布到两处：
+#   1) GitHub Release —— 带 jar，自动生成的 release notes 作为鬼斩版本的 changelog
+#   2) 鬼斩资源站 —— 同名版本、同一个 jar、同一次构建
+#
+# 鬼斩项目（已确认）：
+#   名称 SlimefunCE-Folia，ID UCBWAU1W，type=plugin，状态 draft（草稿公开不可见，带 token 可访问）
+#   草稿项目默认 0 个 channel，首次发版会自动创建 release 频道
+#
+# 直接调用已在 SlimefunSmartDeviceAddon 上跑通的鬼斩 v1 API（不用第三方 Action）：
+#   - 真实基址是 https://resources.guizhanss.com/api/v1（文档路径省略了 v1）
+#   - 创建版本是 multipart/form-data：data 为 JSON 字符串，jar 的 part key 必须等于文件名
+#   - minecraft_versions 必须是 GET /api/v1/data/minecraft-versions 里的合法值
+#   - 同名版本幂等：不重复上传 jar，只 PATCH 同步 platforms / minecraft_versions
+#
+# 仓库配置（Deploy environment 或仓库级）：
+#   Secret   GZ_TOKEN（已配置；兼容旧名 GUIZHAN_TOKEN），格式 gzra_<id>.<secret>，
+#            scope：project:version:create / project:version:update / project:channel:create
+#            + project:update（资料补全用；缺它只跳过该步，不影响发版）
+#   Variable GZ_PROJECT_ID 可选，未设置时用默认 UCBWAU1W（SlimefunCE-Folia）
+#   Variable GZ_CHANNEL / GZ_PLATFORMS / GZ_MC_VERSIONS 可选覆盖
+#   GITHUB_TOKEN 由 Actions 自动注入，用于创建 / 更新 Release。
 
 on:
-  workflow_dispatch:
   push:
     tags:
-      - '*'
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '发布版本号（留空 = Snapshot-<日期>；打 tag 触发时自动用 tag 名）'
+        required: false
+        type: string
+      project_id:
+        description: '鬼斩项目 ID（留空 = UCBWAU1W / SlimefunCE-Folia）'
+        required: false
+        type: string
+      channel:
+        description: '鬼斩频道 slug（不存在时自动创建）'
+        required: false
+        default: 'release'
+        type: string
+      changelog:
+        description: '更新说明（留空 = 取本流程创建的 GitHub Release 说明）'
+        required: false
+        type: string
+      sync_profile:
+        description: '发版时补全鬼斩项目资料（只补空字段，不覆盖已有内容）'
+        required: false
+        default: true
+        type: boolean
 
-# 必须声明 environment,才能读取 Deploy 环境下的 secrets / variables
+permissions:
+  contents: write
+
+concurrency:
+  group: guizhan-publish-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   publish:
     environment: Deploy
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
+          cache: gradle
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Publish to CodeMC Nexus
+      - name: Resolve release version
         env:
-          # 优先读环境 secret,为空则回退到环境 variable(兼容两种添加方式)
-          GRADLE_PROJECT_MAVEN_USERNAME: ${{ secrets.CODEMC_USERNAME != '' && secrets.CODEMC_USERNAME || vars.CODEMC_USERNAME }}
-          GRADLE_PROJECT_MAVEN_PASSWORD: ${{ secrets.CODEMC_PASSWORD != '' && secrets.CODEMC_PASSWORD || vars.CODEMC_PASSWORD }}
-        run: >-
-          ./gradlew clean publish
-          -PcodemcUsername=${{ secrets.CODEMC_USERNAME != '' && secrets.CODEMC_USERNAME || vars.CODEMC_USERNAME }}
-          ${{
-            github.ref_type == 'tag' &&
-            format('-PprojectVersion={0}', github.ref_name) || ''
-          }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$REF_TYPE" = "tag" ]; then
+            version="$REF_NAME"
+          else
+            version="${INPUT_TAG:-}"
+          fi
+          if [ -z "$version" ]; then
+            version="Snapshot-$(TZ=Asia/Shanghai date +%Y%m%d)"
+          fi
+          echo "RELEASE_VERSION=$version" >> "$GITHUB_ENV"
+          echo "ASSET_NAME=SlimefunCE-CN.$version.jar" >> "$GITHUB_ENV"
+          echo "发布版本: $version"
+
+      - name: Build plugin jar
+        # 只打 shade fat jar（不跑 test、不产 sources jar）；-PprojectVersion 让
+        # plugin.yml / git.properties 里的版本与本次发布版本一致。
+        run: ./gradlew clean shadowJar -PprojectVersion="$RELEASE_VERSION" --no-daemon
+
+      - name: Locate and normalize plugin jar
+        id: locate
+        shell: bash
+        run: |
+          set -euo pipefail
+          jar=$(find build/libs -maxdepth 1 -type f -name 'SlimefunCE-CN-*.jar' ! -name '*-sources.jar' | head -n 1)
+          if [ -z "$jar" ]; then
+            echo "::error::未在 build/libs/ 找到主 jar"
+            exit 1
+          fi
+          # 统一成规范名，GitHub 产物与鬼斩版本使用同一个文件、同一次构建。
+          cp "$jar" "/tmp/$ASSET_NAME"
+          # GITHUB_ENV 供后续 shell 用，GITHUB_OUTPUT 供表达式（upload-artifact with:）用。
+          echo "JAR_PATH=/tmp/$ASSET_NAME" >> "$GITHUB_ENV"
+          echo "path=/tmp/$ASSET_NAME" >> "$GITHUB_OUTPUT"
+          echo "name=$ASSET_NAME" >> "$GITHUB_OUTPUT"
+          ls -l "/tmp/$ASSET_NAME"
+          sha256sum "/tmp/$ASSET_NAME"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.locate.outputs.name }}
+          path: ${{ steps.locate.outputs.path }}
+          if-no-files-found: error
+
+      # GitHub Release 与鬼斩版本共用同一次构建的 jar；release notes 同时作为鬼斩 changelog。
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$RELEASE_VERSION"
+          echo "GitHub Release: $tag"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            # 已存在（例如手动建的草稿 / 预发布）：转正式版、刷新标题并替换产物。
+            gh release edit "$tag" --prerelease=false --draft=false --title "$tag"
+            # 清理旧产物；单个删除失败不阻断发版，随后 --clobber 兜底覆盖同名文件。
+            gh release view "$tag" --json assets --jq '.assets[].id' 2>/dev/null | while read -r id; do
+              [ -n "$id" ] && gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$id" >/dev/null 2>&1 || true
+            done || true
+            gh release upload "$tag" "$JAR_PATH" --clobber
+          else
+            # 手动触发且该 tag 尚不存在时，--target 让 gh 基于本次提交创建 tag。
+            gh release create "$tag" "$JAR_PATH" --title "$tag" --generate-notes --target "$GITHUB_SHA"
+          fi
+          gh release view "$tag" --json tagName,isDraft,isPrerelease,assets \
+            --jq '{tag: .tagName, draft: .isDraft, prerelease: .isPrerelease, assets: [.assets[].name]}'
+
+      # 完善鬼斩项目资料：草稿项目常缺描述 / 链接 / 许可证 / tags。
+      # 只补空字段，不覆盖人工填写的内容；失败仅告警，不影响发版。
+      - name: Complete Guizhan project profile
+        env:
+          GZ_TOKEN: ${{ secrets.GZ_TOKEN || secrets.GUIZHAN_TOKEN }}
+          GZ_PROJECT: ${{ inputs.project_id || vars.GZ_PROJECT_ID || 'UCBWAU1W' }}
+          GZ_API: https://resources.guizhanss.com/api/v1
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          SYNC_PROFILE: ${{ inputs.sync_profile }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          # tag 触发时 inputs 为空（空串），视为开启；手动触发取消勾选才为 'false'。
+          # 不用 if: 表达式判断，避免 boolean / 空串的松散比较产生歧义。
+          if [ "${SYNC_PROFILE:-}" = "false" ]; then
+            echo "::notice::sync_profile 已关闭，跳过项目资料补全"
+            exit 0
+          fi
+          if [ -z "${GZ_TOKEN:-}" ]; then
+            echo "::notice::未配置 GZ_TOKEN，跳过项目资料补全"
+            exit 0
+          fi
+          auth="Authorization: Bearer $GZ_TOKEN"
+          raw=$(curl -sS -w ' |HTTP=%{http_code}' -H "$auth" "$GZ_API/projects/$GZ_PROJECT")
+          body="${raw% |HTTP=*}"; code="${raw##* |HTTP=}"
+          if [[ ! "$code" =~ ^2[0-9][0-9]$ ]]; then
+            echo "::warning::读取鬼斩项目资料失败（HTTP $code），跳过补全：${body:0:300}"
+            exit 0
+          fi
+          printf '%s' "$body" > /tmp/gz_project.json
+          REPO_URL="$REPO_URL" python3 .github/scripts/guizhan_project_profile.py \
+            /tmp/gz_project.json > /tmp/gz_patch.json
+          patch=$(cat /tmp/gz_patch.json)
+          if [ "$patch" = "{}" ]; then
+            echo "鬼斩项目资料已完整，无需更新"
+            exit 0
+          fi
+          echo "补全字段：$(printf '%s' "$patch" | jq -r 'keys | join(", ")')"
+          pr=$(curl -sS -w ' |HTTP=%{http_code}' -X PATCH \
+            -H "$auth" -H 'Content-Type: application/json' \
+            -d "$patch" "$GZ_API/projects/$GZ_PROJECT")
+          pr_body="${pr% |HTTP=*}"; pr_code="${pr##* |HTTP=}"
+          if [[ "$pr_code" =~ ^2[0-9][0-9]$ ]]; then
+            echo "鬼斩项目资料补全成功（HTTP $pr_code）"
+          else
+            echo "::warning::鬼斩项目资料补全失败（HTTP $pr_code），不影响发版：${pr_body:0:300}"
+          fi
+
+      - name: Publish version to Guizhan Resources
+        env:
+          GZ_TOKEN: ${{ secrets.GZ_TOKEN || secrets.GUIZHAN_TOKEN }}
+          # 已确认的鬼斩项目 SlimefunCE-Folia；仍可用变量 / 手动输入覆盖。
+          GZ_PROJECT: ${{ inputs.project_id || vars.GZ_PROJECT_ID || 'UCBWAU1W' }}
+          GZ_CHANNEL: ${{ inputs.channel || vars.GZ_CHANNEL || 'release' }}
+          CHANGELOG_INPUT: ${{ inputs.changelog }}
+          GZ_PLATFORMS: ${{ vars.GZ_PLATFORMS }}
+          GZ_MC_VERSIONS: ${{ vars.GZ_MC_VERSIONS }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GZ_API: https://resources.guizhanss.com/api/v1
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          if [ -z "${GZ_TOKEN:-}" ]; then
+            echo "::notice::未配置 GZ_TOKEN / GUIZHAN_TOKEN，跳过鬼斩发布（GitHub Release 与 CI 产物已生成）"
+            exit 0
+          fi
+          # 项目 ID 已确认：UCBWAU1W（SlimefunCE-Folia），可用 GZ_PROJECT_ID / project_id 覆盖。
+
+          # 兼容性默认值：Paper / Folia，MC 1.21.2 ~ 26.3 之间的 15 个鬼斩有效值。
+          # 需要放宽/收紧时，用仓库变量 GZ_PLATFORMS / GZ_MC_VERSIONS 覆盖（JSON 数组字符串）。
+          platforms="${GZ_PLATFORMS:-[\"paper\",\"folia\"]}"
+          mc_default='["1.21.2","1.21.3","1.21.4","1.21.5","1.21.6","1.21.7","1.21.8","1.21.9","1.21.10","1.21.11","26.1","26.1.1","26.1.2","26.2","26.3"]'
+          mc_versions="${GZ_MC_VERSIONS:-$mc_default}"
+          if ! printf '%s' "$platforms" | jq -e 'type == "array"' >/dev/null 2>&1 \
+             || ! printf '%s' "$mc_versions" | jq -e 'type == "array"' >/dev/null 2>&1; then
+            echo "::error::GZ_PLATFORMS / GZ_MC_VERSIONS 必须是 JSON 数组字符串"
+            exit 1
+          fi
+
+          api="$GZ_API/projects/$GZ_PROJECT"
+          auth="Authorization: Bearer $GZ_TOKEN"
+          echo "鬼斩项目: $GZ_PROJECT；发布版本: $RELEASE_VERSION；文件: $ASSET_NAME"
+
+          # ---------- 1. 确保 channel 存在（草稿项目默认没有 channel） ----------
+          chan_raw=$(curl -sS -w ' |HTTP=%{http_code}' -H "$auth" "$api/channels")
+          chan_body="${chan_raw% |HTTP=*}"
+          chan_code="${chan_raw##* |HTTP=}"
+          if [[ ! "$chan_code" =~ ^2[0-9][0-9]$ ]]; then
+            echo "::error::读取鬼斩 channels 失败（HTTP $chan_code）：${chan_body:0:400}"
+            exit 1
+          fi
+          channel=$(printf '%s' "$chan_body" \
+            | jq -r --arg c "$GZ_CHANNEL" '.data[]? | select(.slug == $c) | .slug' 2>/dev/null | head -n1)
+          if [ -z "$channel" ] || [ "$channel" = "null" ]; then
+            echo "频道 $GZ_CHANNEL 不存在，创建中..."
+            chan_data=$(jq -nc --arg slug "$GZ_CHANNEL" --arg name "$GZ_CHANNEL" '{slug:$slug, name:$name}')
+            cc_raw=$(curl -sS -w ' |HTTP=%{http_code}' -X POST \
+              -H "$auth" -H 'Content-Type: application/json' \
+              -d "$chan_data" "$api/channels")
+            cc_body="${cc_raw% |HTTP=*}"
+            cc_code="${cc_raw##* |HTTP=}"
+            channel=$(printf '%s' "$cc_body" | jq -r '.data.slug // empty' 2>/dev/null)
+            if [ -z "$channel" ]; then
+              echo "::error::创建鬼斩 channel 失败（HTTP $cc_code）：${cc_body:0:400}"
+              exit 1
+            fi
+          fi
+          echo "使用 channel: $channel"
+
+          # ---------- 2. 幂等检查：同名版本已存在则只同步兼容性元数据 ----------
+          ver_raw=$(curl -sS -w ' |HTTP=%{http_code}' --get \
+            -H "$auth" --data-urlencode "search=$RELEASE_VERSION" "$api/versions")
+          ver_body="${ver_raw% |HTTP=*}"
+          ver_code="${ver_raw##* |HTTP=}"
+          if [[ ! "$ver_code" =~ ^2[0-9][0-9]$ ]]; then
+            echo "::error::读取鬼斩版本列表失败（HTTP $ver_code）：${ver_body:0:400}"
+            exit 1
+          fi
+          existing=$(printf '%s' "$ver_body" \
+            | jq -r --arg v "$RELEASE_VERSION" '.data[]? | select(.version == $v) | .id' 2>/dev/null | head -n1)
+          if [ -n "$existing" ] && [ "$existing" != "null" ]; then
+            patch_data=$(jq -nc --argjson p "$platforms" --argjson m "$mc_versions" \
+              '{platforms:$p, minecraft_versions:$m}')
+            patch_raw=$(curl -sS -w ' |HTTP=%{http_code}' -X PATCH \
+              -H "$auth" -H 'Content-Type: application/json' \
+              -d "$patch_data" "$api/versions?ids=$existing")
+            patch_body="${patch_raw% |HTTP=*}"
+            patch_code="${patch_raw##* |HTTP=}"
+            if [[ "$patch_code" =~ ^2[0-9][0-9]$ ]]; then
+              echo "鬼斩已存在版本 $RELEASE_VERSION（id=$existing），跳过创建；兼容性元数据已同步：$patch_data"
+              curl -sS -H "$auth" "$api/versions/$existing" \
+                | jq -c '{platforms: .data.platforms, minecraft_versions: .data.minecraft_versions}' 2>/dev/null || true
+            else
+              echo "::warning::版本 $RELEASE_VERSION 已存在，但同步兼容性元数据失败（HTTP $patch_code）：${patch_body:0:400}"
+            fi
+            exit 0
+          fi
+
+          # ---------- 3. changelog：自定义 > 上一步 GitHub Release 说明 > 默认文本 ----------
+          changelog="${CHANGELOG_INPUT:-}"
+          if [ -z "$changelog" ] \
+             && gh release view "$RELEASE_VERSION" --json body --jq .body >/tmp/gz_changelog.md 2>/dev/null \
+             && [ -s /tmp/gz_changelog.md ]; then
+            changelog=$(cat /tmp/gz_changelog.md)
+          fi
+          if [ -z "$changelog" ]; then
+            changelog="自动构建自 ${GITHUB_REPOSITORY}@${GITHUB_SHA:0:7}（${RELEASE_VERSION}）。完整改动见 https://github.com/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}"
+          fi
+
+          # ---------- 4. multipart 创建版本并上传 jar ----------
+          data=$(jq -nc \
+            --arg channel "$channel" \
+            --arg version "$RELEASE_VERSION" \
+            --arg name "$RELEASE_VERSION" \
+            --arg changelog "$changelog" \
+            --arg file "$ASSET_NAME" \
+            --argjson platforms "$platforms" \
+            --argjson mc "$mc_versions" \
+            '{channel:$channel, version:$version, name:$name, changelog:$changelog, files:[$file], platforms:$platforms, minecraft_versions:$mc}')
+
+          echo "创建鬼斩版本..."
+          post_raw=$(curl -sS -w ' |HTTP=%{http_code}' -X POST \
+            -H "$auth" \
+            -F "data=$data" \
+            -F "$ASSET_NAME=@$JAR_PATH" \
+            "$api/versions")
+          post_body="${post_raw% |HTTP=*}"
+          post_code="${post_raw##* |HTTP=}"
+          id=$(printf '%s' "$post_body" | jq -r '.data.id // empty' 2>/dev/null)
+          if [ -z "$id" ]; then
+            echo "::error::鬼斩版本发布失败（HTTP $post_code）：${post_body:0:800}"
+            exit 1
+          fi
+          echo "鬼斩版本发布成功（id=$id）："
+          printf '%s' "$post_body" \
+            | jq -c '{version: .data.version, channel: (.data.channel.slug // .data.channel), files: [.data.files[]? | {name, size, is_primary}]}' 2>/dev/null || true

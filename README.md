@@ -1,283 +1,229 @@
-# Slimefun 中文版
+# Slimefun4-CN · Folia 整合版
 
-Looking for English (or Original) Version? [**Click here**](https://github.com/Slimefun/Slimefun4/)
+> 本仓库是基于 [Slimefun4 中文社区版](https://github.com/SlimefunGuguProject/Slimefun4) 的 **Folia 整合分支**，由  
+> [LiuyeStudio](https://github.com/LiuyeStudio/Slimefun4) 维护。
+>
+> **原中文社区版 README 已归档为 [README-UPSTREAM.md](README-UPSTREAM.md)** —— 下载渠道、Wiki、QQ/KOOK 群、  
+> 订阅计划、Maven 依赖坐标、社区与免责声明等上游原有说明都在那里。  
+> 本文件只回答一个问题：**相对中文社区版，这里改了什么。**
 
-想要直接下载吗? [**单击此处**](https://github.com/SlimefunGuguProject/Slimefun4/blob/master/README.md#floppy_disk-下载-slimefun4)
+---
 
-欢迎加入 QQ 交流群：807302496
+## 一、与上游的关系
 
-下载 [SlimeGlue(粘液胶)](https://github.com/Xzavier0722/SlimeGlue/) 以保证 Slimefun 与其他保护插件的兼容性
+| 项目         | 说明                                                                                                                                                                                          |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 基线         | `SlimefunGuguProject/Slimefun4` 的 `c111c3573`（本地 remote `upstream`）                                                                                                                         |
+| 当前仓库       | `LiuyeStudio/Slimefun4`，分支 `master`                                                                                                                                                         |
+| Folia 适配来源 | [LiuyeStudio/Slimefun4-Folia](https://github.com/LiuyeStudio/Slimefun4-Folia)（核动豆 NukeBean）+ [Craft233MC/Slimefun4](https://github.com/Craft233MC/Slimefun4) 的 `dev`（neokoni），两条主线合并后逐个解决冲突 |
+| 改动规模       | 相对基线约 **127 个文件 / +3,151 / -609 行**                                                                                                                                                         |
+| 不变的        | 汉化文本、物品/研究/配方数据、指南、自动更新器、bStats 等中文社区版既有内容一律保留；玩法数值未改                                                                                                                                       |
+| 目标服务端      | **Folia 26.3**（同时保留 Paper 兼容路径）                                                                                                                                                             |
 
-### 订阅计划
+> 使用汉化版后请勿到官方问题追踪器提 issue，这条规则与上游一致，详见归档 README。
 
-⚡ 汉化不易, 欢迎支持[爱发电](https://afdian.net/a/nora1ncity)
+---
 
-加入爱发电订阅计划可抢先获得最新版本的 Slimefun 构建，以及是优先技术支持。
-注意：**非年度计划用户**可在距上次公开仓库更新后 15 天获取自动同步的源代码，并非闭源。我们十分遵循 GPLv3 协议 :)
+## 二、改动总览
 
-了解订阅计划：[订阅计划](https://resources.guizhanss.com/tools/slimefun-insider)
+| 类别       | 主要变化                                                                          |
+| -------- | ----------------------------------------------------------------------------- |
+| Folia 支持 | `folia-supported: true`、Minecraft 26.3 版本常量、全面移除 Bukkit 全局调度器、新增区域/实体安全调度 API |
+| 线程归属     | 数据库异步回调按「实体 → 位置 → 全局」派发；修复破坏方块与右键交互时的区域线程异常                                  |
+| 存储安全     | SQL 字面量转义、旧物品数据兼容与修复、`loadBlockDataAsync(List)` 回调时机修正                        |
+| 功能       | 新增「书 + 粘液球 → 粘液科技指南」配方（可配置）、背包/冷却器等多线程修复                                      |
+| 构建       | 固定 `dough-api 1.3.1-folia` 并本地 vendoring、产物改名与日期版本、CodeMC 发布、鬼斩资源站发布工作流       |
+| 测试       | 新增 9 个测试类，覆盖 SQL 转义、旧数据修复、玩家任务注册表、聊天输入流程等                                     |
 
-![目前版本](https://img.shields.io/github/v/release/SlimefunGuguProject/Slimefun4?include_prereleases)
-[![Issues](https://img.shields.io/github/issues/SlimefunGuguProject/Slimefun4.svg?style=popout)](https://github.com/SlimefunGuguProject/Slimefun4/issues)
-![下载数](https://img.shields.io/github/downloads/SlimefunGuguProject/Slimefun4/total)
+---
 
-使用汉化版之后，**禁止**在官方问题追踪器创建新问题!  
-如果你执意要这么做, 请在反馈时使用**官方**开发版并且使用**英语**提交问题。  
-否则，请在此处创建问题或加群讨论。
+## 三、Folia 支持（核心改动）
 
-Slimefun 是一个致力于提供模组般体验的插件。它提供了你能想到的一切，不管是喷气背包还是魔法祭坛！
+### 3.1 为什么必须改
 
-Slimefun 让每个玩家可以自行决定在魔法或科技方面发展。  
-从魔杖到核反应堆，我们应有尽有。  
-除此之外，我们还有魔法祭坛、能源网络甚至物品运输系统。
+Folia 把世界拆成多个**区域线程**，并禁用 Bukkit 全局调度器：  
+`Bukkit.getScheduler().runTask / runTaskLater / runTaskTimer / callSyncMethod` 在 26.3 上直接抛  
+`UnsupportedOperationException`。此外，在全局区域线程（`region={null}`）上调用  
+`Location#getChunk()`、`World#getChunkAt()`、方块或实体读写，会抛  
+`Thread failed main thread check`。而 `Bukkit.isPrimaryThread()` 在 Folia 的全局区域线程上会**误判为  
+`true`**，导致大量「以为在主线程就直接执行」的防御代码失效。
 
-该项目始于 2013 年，至今仍在发展。
-现在已从独立小型插件到发展成一个拥有数千名参与者和百名贡献者的社区。  
-目前 Slimefun 添加了超过 **500 种新物品/合成配方**
-([查看关于 Slimefun 的历史](https://slimefun-wiki.guizhanss.cn/Slimefun-in-a-nutshell))。
+### 3.2 统一调度抽象
 
-与此同时，Slimefun 还有种类繁多的附属插件可供选择！<br>
-打开[附属插件列表](https://slimefun-wiki.guizhanss.cn/Addons)，寻找你想要的附属插件！
+所有任务改走 `Slimefun.getFoliaLib().getScheduler()`（FoliaLib `PlatformScheduler`）：  
+`runLater` / `runTimer` / `runTimerAsync` / `runLaterAsync` / `runAtLocationLater`，  
+返回值统一为 `WrappedTask`。涉及 `BlockDataController`、`TickerTask`、`AbstractArmorTask`、  
+`AsyncRecipeChoiceTask`、`AutoSavingService`、`GitHubService/Task`、`HologramsService`、  
+`SQLProfiler`、`EnvironmentChecker`、`ParticleUtil`、`IntegrationsManager`、`ElytraImpactListener` 等。
 
-### 导航
+`Slimefun` 新增一组区域安全 API（供主程序与附属插件使用）：
 
-* **[下载 Slimefun 4](#floppy_disk-下载-slimefun4)**
-* **[Discord 服务器](#discord)**
-* **[Bug 反馈](https://github.com/SlimefunGuguProject/Slimefun4/issues)**
-* **[官方Wiki](https://github.com/Slimefun/Slimefun4/wiki)**
-* **[非官方中文 Wiki](https://slimefun-wiki.guizhanss.cn/)**
-* **[FAQ](https://slimefun-wiki.guizhanss.cn/FAQ)**
+| 方法                                               | 调度目标                                           |
+| ------------------------------------------------ | ---------------------------------------------- |
+| `runSync(Runnable[, delay])`                     | 全局同步（Folia 下为全局区域线程，**仅用于不碰方块/实体的纯逻辑**）        |
+| `runAtRegion(Location, Runnable[, delay])`       | 位置所属的区域线程                                      |
+| `runAtEntity(Entity, Runnable[, delay])`         | 实体所属的区域线程                                      |
+| `runSyncAtEntity(Runnable, Entity[, delay])`     | 同上，参数顺序兼容 dev 分支写法                             |
+| `runSyncAtLocation(Runnable, Location[, delay])` | 同上                                             |
+| `getFoliaLib()`                                  | 直接拿 FoliaLib 实例，用 `isFolia()` 分流 Paper / Folia |
 
-## :floppy_disk: 下载 Slimefun4
+`TaskUtil.runSyncMethod` 不再使用 `callSyncMethod`，改为 `CompletableFuture` + 区域调度；  
+`FoliaTaskQueue` 增加 `execute(Plugin, Location)`、`thenRun(Location, …)`、  
+`thenRepeatEvery(Location, …)`，让多方块动画（堆肥机、自动淘金机、采矿机等）按区域执行。
 
-(可以查看: [如何安装 Slimefun](https://slimefun-wiki.guizhanss.cn/Installing-Slimefun))
+### 3.3 数据库回调的区域归属（本轮重点修复）
 
-Slimefun 4 可以在[鬼斩资源站](https://resources.guizhanss.com/plugin/Slimefun4)页面中**免费下载**。
+`ADataController.invokeCallback` 原本对 `runOnMainThread() = true` 的回调一律 `runSync`，  
+回调体却在操作方块 —— 破坏「数据尚未加载完」的 Slimefun 方块时会报  
+`Thread failed main thread check: Async chunk retrieval`。修复方式：
 
-以下是两种版本的区别:
+- `IAsyncReadCallback` 新增 `getRegionAnchor()` / `getEntityAnchor()` 两个可选锚点；
+- `ADataController` 按 **实体锚点 → 位置锚点 → 全局** 派发，并新增带 `Location` 的 `invokeCallback` 重载；
+- `BlockDataController` 的所有异步读回调都带上锚点（Location、`SlimefunBlockData#getLocation`、  
+  `SlimefunUniversalBlockData#getLastPresent`、区块换算出的坐标）；
+- `TeleporterListener`、`SlimefunItemInteractListener`、`BackpackCommand`、`ClearDataCommand`、  
+  `StorageCacheUtils`、`DebugFishListener` 等回调补齐实体/位置锚点。
 
-|                      | 测试版 (最新更新)                                                                                | "稳定版"                                                                                 |
-|----------------------|-------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------|
-| **支持的 Minecraft 版本** | :video_game: 1.18.X - 26.3.X                                                              | :video_game: 1.18.X - 26.2.X                                                          |
-| **Java 版本**          | :computer: **Java 21+**                                                                   | :computer: **Java 21+**                                                               |
-| **自动更新系统**           | :heavy_check_mark:                                                                        | :x:                                                                                   |
-| **频繁更新**             | :heavy_check_mark:                                                                        | :x:                                                                                   |
-| **享有最新内容**           | :heavy_check_mark:                                                                        | :x:                                                                                   |
-| **Discord 支持**       | :heavy_check_mark:                                                                        | :x:                                                                                   |
-| **Bug 反馈**           | :heavy_check_mark:                                                                        | :x:                                                                                   |
-| **在发布前进行测试**         | :x:                                                                                       | :heavy_check_mark:                                                                    |
-| **有无更新日志**           | :x:                                                                                       | :memo: **[更新日志(英文)](https://github.com/Slimefun/Slimefun4/blob/master/CHANGELOG.md)** |
-| **下载链接**             | :package: **[下载 最新版](https://resources.guizhanss.com/project/Slimefun4/version/latest?channel=master)** | :package: **[下载 "稳定版"](https://resources.guizhanss.com/project/Slimefun4/version/latest?channel=release)** |
+### 3.4 同类点位整改
 
-**! 建议你使用最新的测试版，可以获得最新的内容更新和 Bug 修复！**
+`InventoryUtil` 背包开关按玩家实体调度；`TickerTask` 同步 ticker、`ParticleUtil` 方块高亮、  
+`ErrorReport` 带坐标的报告、`HologramsService.removeHologram`、`ItemFilter`、`Reactor` 按位置调度；  
+`ElevatorPlate` 传送、`SlimefunBowListener` 箭实体、`BackpackListener` 打开背包按实体调度；  
+`ProgrammableAndroid`、`StorageCacheUtils.hasUniversalBlock` 的同步查询改走带 `Location` 的  
+`TaskUtil` 重载。所有 `Bukkit.isPrimaryThread()` 判断均在 Folia 下改为显式 `isFolia()` 分流，  
+避免误判。
 
-## :computer: (开发) 添加依赖
+### 3.5 两个已排除的坑（维护请注意）
 
-首先添加我们的私有仓库：
+1. **区域线程自死锁**：`TaskUtil.runSyncMethod` 曾无条件把任务排到同一区域的下一 tick 再  
+   `future.get(1s)` 阻塞，而 `PlayerInteractEvent` 本身就跑在该区域线程上，导致  
+   `Timeout when executing sync method` → 拆箱 `NullPointerException`。现在  
+   `Bukkit.isPrimaryThread()` 为真时**直接同步执行**，只有真正的异步线程才派发并等待；  
+   `hasUniversalBlock` 另用 `Boolean.TRUE.equals(...)` 兜底。
+2. **构建缓存**：改动 `build.gradle.kts` 后增量 `shadowJar` 可能 `FROM-CACHE` 恢复旧包。  
+   验证/部署前请 `./gradlew clean shadowJar test`，并检查 `build/libs/` 下实际文件名与时间戳。
 
-Maven:
+---
 
-```xml
-<repository>
-    <id>gugu-maven-repo</id>
-    <url>https://maven.norain.city/releases</url>
-</repository>
+## 四、存储与数据安全
 
-```
+- `SqlUtils` 新增 `escapeSqlLiteral`：把 SQL 字符串字面量中的 `'` 转义为 `''`、`\` 转义为 `\\`，  
+  避免带引号或反斜杠的键名拼进 SQL 时报错或注入；新增 `SqlUtilsEscapingTest`。
+- 新增 `ItemDataRecovery`、`LegacyItemStackDeserializer`、`LegacyEnchantmentDataFixer`，  
+  配套调整 `ItemStackDataCodec`、`LegacyItemMetaDeserializer`，用于旧版物品数据/附魔数据的兼容恢复；  
+  新增 `PlayerTaskRegistry` 统一管理玩家任务。
+- 修正 `BlockDataController.loadBlockDataAsync(List, callback)` 的回调在加载完成**之前**就同步执行的时序 bug。
+- 新增 `AbstractPlayerTaskTest`、`PlayerTaskRegistryTest`、`ItemDataRecoveryTest` 等共 9 个测试类。  
+  最近一次本地验证（2026-11-15）：`./gradlew clean shadowJar test --offline` → **41 测试 / 0 失败 / 1 项真实数据库测试跳过**。
 
-开发版:
-```xml
-<repository>
-    <id>gugu-maven-repo</id>
-    <url>https://maven.norain.city/snapshots</url>
-    <snapshots>
-        <enabled>true</enabled>
-    </snapshots>
-</repository>
-```
+---
 
-Gradle: 在 `build.gradle.kts` 中添加以下内容:
+## 五、功能与内容
 
-```kotlin
-repositories {
-    maven {
-        url "https://maven.norain.city/releases"
-    }
-}
-```
+- **Minecraft 26.3**：`MinecraftVersion` 增加 `MINECRAFT_26_3`，编译基线 Paper-API `1.21.11-R0.1-SNAPSHOT` / Java 21。
+- **指南书配方**：新增「书 + 粘液球」合成粘液科技指南（`SlimefunGuideRecipeListener`），  
+  由 `config.yml` 的 `guide.crafting` 控制，默认 `true`。
+- **dev 分支合并带入的修复**：背包 / 冷却器多线程异常、灵魂绑定物品归还、抓钩改用  
+  `teleportAsync`、自动附魔/附魔事件同步、全息投影编辑、  `getNearbyEntities`、GEO 矿工、  
+  Vanilla 掉落处理按 Location 执行等。
 
-对于开发版：
-```kotlin
-repositories {
-    maven {
-        url "https://maven.norain.city/snapshots"
-    }
-}
-```
+---
 
-接下来添加 Slimefun 4 作为依赖:
-Maven:
+## 六、构建与发布
 
-```xml
-<dependency>
-    <groupId>com.github.SlimefunGuguProject</groupId>
-    <artifactId>Slimefun4</artifactId>
-    <version>DEV-SNAPSHOT</version>
-    <scope>provided</scope>
-</dependency>
-```
+- **依赖固定**：`dough-api` 固定为 `1.3.1-folia`（含 FoliaLib），jar 与最小 pom 放在  
+  `local-deps/io/github/baked-libs/dough-api/1.3.1-folia/`，并把该本地仓库放在 `repositories` **首位**，  
+  使构建可离线复现，不再受远端 SNAPSHOT 变动影响。
+- **构建脚本**：`group = com.github.slimefunce`；版本默认 `Snapshot-<yyyyMMdd>`（可用  
+  `-PprojectVersion=...` 覆盖）；产物为 `build/libs/SlimefunCE-CN-Snapshot-<yyyyMMdd>.jar`；  
+  Maven 发布指向 CodeMC，凭证只从环境变量读取（`GRADLE_PROJECT_MAVEN_USERNAME/PASSWORD`，  
+  回退 `MAVEN_ACCOUNT/MAVEN_PASSWORD`），不硬编码。
+- **CI**：`.github/workflows/publish.yml` 负责自动构建、发 GitHub Release 并发布鬼斩资源站；  
+  `dev-ci.yml`、`spotless.yml` 等只做构建 / 格式检查。
+- **常用命令**：
+  ```bash
+  ./gradlew clean shadowJar test --offline --console=plain
+  ```
 
-Gradle:
+### 6.1 自动发版（GitHub Release + 鬼斩资源站）
 
-```kotlin
-dependencies {
-    compileOnly("com.github.SlimefunGuguProject:Slimefun4:DEV-SNAPSHOT")
-}
-```
+- **鬼斩项目**：`SlimefunCE-Folia`，ID `UCBWAU1W`，type `plugin`，当前为草稿（公开页面不可见，  
+  带 token 的 API 可访问；草稿默认没有 channel，首次发版自动创建 `release`）。ID 已写为 workflow 默认值，  
+  也可用变量 `GZ_PROJECT_ID` 或手动输入 `project_id` 覆盖。
+- **触发**：推送 `v*` 标签（版本号 = 标签名），或在 Actions 页手动运行  
+  `Build, Release & Publish to Guizhan Resources`，可填 `tag` / `project_id` / `channel` / `changelog`  
+  并可关闭 `sync_profile`；手动运行且 `tag` 留空时用 `Snapshot-<yyyyMMdd>`。
+- **流程**：JDK 21 + Gradle `shadowJar`（`-PprojectVersion` 使 `plugin.yml` 版本与发布版本一致）→  
+  统一产物名 `SlimefunCE-CN.<版本>.jar` 并存为 CI 产物 → **创建 / 更新 GitHub Release**（带同一个 jar，  
+  `--generate-notes` 生成说明；已存在的草稿 / 预发布转正式版并替换旧产物）→ **发布鬼斩同名版本**。  
+  两边是同一个文件、同一次构建，鬼斩 changelog 直接取 GitHub Release 说明。
+- **鬼斩发版**：直接调用 v1 REST API（不依赖第三方 Action），channel 不存在时自动创建；  
+  同名版本已存在则跳过上传 jar，只 PATCH 同步兼容性元数据，重复运行不会产生重复版本。
+- **完善项目资料**：发版时按 `.github/scripts/guizhan_project_profile.py` 检查草稿项目，  
+  只补全空缺的 `summary` / `description`（取本仓库 README）/ `license_type`（GPL-3.0）/  
+  `homepage_url` / `source_url` / `issues_url` / `wiki_url` / `tags`（`slimefun`），不覆盖已填内容；  
+  需 `project:update` scope，token 无此权限时只告警、不影响发版。
+- **配置**：Secret `GZ_TOKEN`（已配置；兼容旧名 `GUIZHAN_TOKEN`），需 `project:version:create` /  
+  `project:version:update` / `project:channel:create`，以及资料补全用的 `project:update` scope  
+  （缺 `project:update` 只跳过资料补全，不影响发版）。可选 Variable `GZ_PROJECT_ID`、  
+  `GZ_CHANNEL`、`GZ_PLATFORMS`、`GZ_MC_VERSIONS`（默认 `release`、`paper` / `folia`、  
+  MC `1.21.2 ~ 26.3` 共 15 个鬼斩有效值）。`GITHUB_TOKEN` 由 Actions 自动注入，workflow 用 `contents: write`。  
+  未配置 `GZ_TOKEN` 时仍会构建并发布 GitHub Release，只跳过鬼斩。
+- **changelog**：手动输入 > GitHub Release 说明 > 指向本次提交的默认文本。
+- **注意**：手动触发且 tag 不存在时，`gh release create --target` 会基于本次提交创建同名 tag；  
+  鬼斩项目仍是草稿，公开下载需先在鬼斩提交审核并通过。
 
+---
 
-## :computer: 如何编译
-要编译 Slimefun4，你必须先安装 [Git](https://git-scm.com/)
+## 七、部署与实机验证
 
-然后运行 `git clone https://github.com/SlimefunGuguProject/Slimefun4.git` 克隆仓库到本地。
+- 部署时把产物复制为服务器里的 `plugins/Slimefun-DEV-SNAPSHOT.jar`（**保持文件名不变**），  
+  避免与原文件名插件同时存在导致同名插件被加载两次。
+- 已在 Folia 26.3 实机验证：`Enabling Slimefun vSnapshot-20261115` → `Done (16.286s)`，  
+  加载 569 个物品 / 258 个研究 / 2,049 个配方；启动日志中  
+  `ERROR` / `Exception` / `Async chunk retrieval` / `Thread failed main thread check` /  
+  `Timeout when executing sync method` / `Could not pass event` 计数均为 0。
+- 方块破坏与右键交互路径需玩家进服触发，启动阶段覆盖不到；改动调度代码后请务必实机走一遍。
 
-最后进行编译：
-- 如果你是 Windows 系统: `./gradlew.bat build`
-- 如果你是类 Unix 系统: `./gradlew build`
+---
 
-Folia 开发分支的 CI 构建流程可参考 [dev-ci.yml](https://github.com/Craft233MC/Slimefun4/blob/dev/.github/workflows/dev-ci.yml)。
+## 八、已知限制
 
-## :framed_picture: 截图
+- `SlimefunChunkData#getChunk()` 里的 `Bukkit.isPrimaryThread()` 守卫在 Folia 全局区域线程仍会误判，  
+  属 API 内部防御检查；调用方需自行按区域调度。
+- `api/events/*` 中 `super(!Bukkit.isPrimaryThread())` 的异步标记语义在 Folia 下可能不准确  
+  （只影响事件元数据，不影响功能），暂未改动以降低风险。
+- `PlayerBackpack.getAsync(item, callback, true)` 仍会取到全局 executor，目前**无调用者**；  
+  新代码请使用单参数版本并显式按实体/位置调度。
+- `HologramOwner#updateHologram` 的直接分支内部已按位置调度，实际安全，但外层判断未在 Folia 下分流。
 
-那么，Slimefun 看起来是怎样的呢？<br>
-我们让 [Discord 服务器](#discord) 中的一些人发给了我们一些截图：
-| 反应堆和电力 | 了不起的自动化工厂 | 魔法实验室 |
-| :-------------------------------------------: | :--------------------------------------: | :----------------------------------------: |
-| ![](https://raw.githubusercontent.com/Slimefun/Slimefun-Wiki/master/images/showcase1.png) | ![](https://raw.githubusercontent.com/Slimefun/Slimefun-Wiki/master/images/showcase6.png) | ![](https://raw.githubusercontent.com/Slimefun/Slimefun-Wiki/master/images/showcase5.png) |
-| *截图由 HamtaBot#0001 提供* | *截图由 Piͭxͪeͤl (mnb)#5049 提供* | *截图由 Kilaruna#4981 提供* |
-| ![](https://raw.githubusercontent.com/Slimefun/Slimefun-Wiki/master/images/showcase4.png) | ![](https://raw.githubusercontent.com/Slimefun/Slimefun-Wiki/master/images/showcase3.png) | ![](https://raw.githubusercontent.com/Slimefun/Slimefun-Wiki/master/images/showcase2.png) |
-| *截图由 GalaxyKat11#3816 提供* | *截图由 TamThan#7987 提供* | *截图由 Kilaruna#4981 提供* |
+---
 
-## :headphones: 社区
+## 九、Folia 适配来源与鸣谢
 
-### 汉化版 QQ 群
+Folia 支持并非从零实现，而是在以下项目基础上整合、修复而来。按  
+[GNU GPLv3](LICENSE) 保留原始归属声明；本分支的修改同样以 GPLv3 发布。
 
-汉化版交流 QQ 群：807302496 (Slimefun 汉化版交流)
-附属交流 QQ 群：205679802 (Slimefun 附属交流，以及汉化组插件更新通知)
-
-### KOOK 交流频道
-
-欢迎加入 KOOK [粘液科技简中社区](https://kook.top/oqZwh8) 服务器
-
-### 官方 Discord
-
-你可以在 Discord 上找到 Slimefun 的社区服务器，并与 **超过 7000** 个来自全世界的用户进行交流。  
-单击下面的徽标加入 Discord 服务器反馈问题和提出意见，或者讨论关于此插件的内容。  
-Slimefun 官方经常会举办一些社区活动，加入我们了解更多。  
-**注意**：Slimefun 官方在 Discord 服务器 **不**
-接受任何形式的问题反馈，请使用 [问题追踪器](https://github.com/SlimefunGuguProject/Slimefun4/issues) 反馈问题！
-
-在加入前请先了解官方 Discord 服务器[重要的规则](https://github.com/Slimefun/Slimefun4/wiki/Discord-Rules)。  
-不遵守以上规则的人可能会被从服务器中踢出甚至封禁。
-
-<p align="center">
-  <a href="https://discord.gg/slimefun">
-    <img src="https://discordapp.com/api/guilds/565557184348422174/widget.png?style=banner3" alt="Discord Invite"/>
-  </a>
-</p>
-
-## :open_book: Wiki
-
-Slimefun 有一个为新玩家准备的 (详细且经常维护的 - *咳咳*) Wiki，
-你也可以考虑为 Wiki 的编写献出一份力量。
-官方 Wiki：https://github.com/Slimefun/Slimefun4/wiki  
-非官方中文 Wiki：https://slimefun-wiki.guizhanss.cn/
-
-#### :star: 有用的文章 (中文)
-
-* [什么是 Slimefun?](https://slimefun-wiki.guizhanss.cn/Slimefun-in-a-nutshell)
-* [如何安装 Slimefun](https://slimefun-wiki.guizhanss.cn/Installing-Slimefun)
-* [Slimefun 4 扩展列表](https://slimefun-wiki.guizhanss.cn/Addons)
-* [Slimefun 4 扩展编写教程](https://slimefun-wiki.guizhanss.cn/Developer-Guide)
-* [开始使用](https://slimefun-wiki.guizhanss.cn/Getting-Started)
-* [常见问题](https://slimefun-wiki.guizhanss.cn/FAQ)
-* [使用中的常见问题](https://slimefun-wiki.guizhanss.cn/Common-Issues)
-* [帮助我们扩展 Wiki!](https://slimefun-wiki.guizhanss.cn/Expanding-the-Wiki)
-* [帮助我们翻译 Slimefun!](https://slimefun-wiki.guizhanss.cn/Translating-Slimefun)
-
-这个 Wiki 由 @ybw0014 进行维护，如果你发现有文章缺失，请在 Wiki 的 Issues 页面汇报。
-
-## :handshake: 对项目作出贡献
-
-Slimefun 4 是一个以 [GNU GPLv3 协议](https://github.com/Slimefun/Slimefun4/blob/master/LICENSE) 开源的项目。
-已经有超过 100 人对这个项目做出了贡献，这些人真是太棒了。  
-我们鼓励通过提交 PR 的方式为 Slimefun 4 做出贡献，你的贡献将会使插件保持活力 <3。
-
-## :sparkles: Folia 适配来源与鸣谢
-
-本分支（`folia-integration`）的 Folia 支持并非从零实现，而是在以下项目的基础上整合、修复而来。
-按 [GNU GPLv3](LICENSE) 的要求，在此保留原始归属声明；本分支的修改同样以 GPLv3 发布。
-
-* **[核动豆（NukeBean）](https://github.com/nukebean)** 与 **[LiuyeStudio / 流叶科技工作室](https://github.com/LiuyeStudio)**
-  — [LiuyeStudio/Slimefun4-Folia](https://github.com/LiuyeStudio/Slimefun4-Folia) 的 Folia 区域化调度适配、
-  任务模型重构与持续维护。本分支的 `FoliaTaskQueue`、`PlayerTaskRegistry`、`ItemDataRecovery`、
-  `LegacyEnchantmentDataFixer`、`LegacyItemStackDeserializer`、`SlimefunGuideRecipeListener`
+- **[核动豆（NukeBean）](https://github.com/nukebean)** 与  
+  **[LiuyeStudio / 流叶科技工作室](https://github.com/LiuyeStudio)**  
+  — [LiuyeStudio/Slimefun4-Folia](https://github.com/LiuyeStudio/Slimefun4-Folia) 的区域化调度适配、  
+  任务模型重构与持续维护。`FoliaTaskQueue`、`PlayerTaskRegistry`、`ItemDataRecovery`、  
+  `LegacyEnchantmentDataFixer`、`LegacyItemStackDeserializer`、`SlimefunGuideRecipeListener`  
   等文件源自该项目，并针对汉化版做了适配修改。
-* **[neokoni](https://github.com/neokoni)**（[Craft233MC/Slimefun4](https://github.com/Craft233MC/Slimefun4)）
-  — 另一条 Folia 适配主线，其 `dev` 分支通过 git 合并引入本分支；背包 / 冷却器多线程修复、
-  `runSyncAtEntity` / `runSyncAtLocation` 区域安全调度等来自这里。
-* **[cyantangerine (Elvin)](https://github.com/cyantangerine)**
-  — `folia-integration` 分支的移植整合、冲突解决、Folia 26.3 兼容性修复与实机验证。
+- **[neokoni](https://github.com/neokoni)**（[Craft233MC/Slimefun4](https://github.com/Craft233MC/Slimefun4)）  
+  — 另一条 Folia 适配主线，其 `dev` 分支通过 git 合并引入；背包 / 冷却器多线程修复、  
+  `runSyncAtEntity` / `runSyncAtLocation` 等区域安全调度来自这里。
+- **[cyantangerine (Elvin)](https://github.com/cyantangerine)**  
+  — 移植整合、冲突解决、Folia 26.3 兼容性修复、区域归属回调重构与实机验证。
 
-上游 [Slimefun 4](https://github.com/Slimefun/Slimefun4) 与
-[Slimefun4 汉化版](https://github.com/SlimefunGuguProject/Slimefun4) 的原始版权声明与许可条款继续有效。
+署名仅保留在 README 与源码 Javadoc 中；`plugin.yml` 的 authors 与游戏内致谢文本维持上游原样。  
+上游 [Slimefun 4](https://github.com/Slimefun/Slimefun4) 与  
+[Slimefun4 汉化版](https://github.com/SlimefunGuguProject/Slimefun4) 的版权声明与许可条款继续有效。
 
-## :exclamation: 免责声明
+---
 
-Slimefun4 使用多种系统收集使用数据，以及使用自动更新让你知晓关于这个项目的最新信息。
-我们不会收集从你那里获取的任何个人信息，但是有些服务可能仍会收集或下载某种形式的数据。
+## 十、上游原始文档
 
-你可以在任何时候选择退出数据收集和关闭自动更新
-
-<details>
-  <summary>自动更新</summary>
-
-Slimefun 汉化版 使用 Github API + GuizhanBuild API 以检测和下载更新。  
-这一功能被默认启用，但你可以在 `/plugins/Slimefun/config.yml` 里选择关闭。  
-我们强烈推荐你使用自动更新，以确保你能获得最新功能/修复的更新。
-
-</details>
-
-<details>
-  <summary>指标与统计</summary>
-
-Slimefun4 使用 [bStats](https://bstats.org/plugin/bukkit/Slimefun/4574) 收集关于插件的匿名信息。  
-这些仅是为了统计目的，因为我们对服务器和玩家如何使用插件很感兴趣。  
-所有公开的数据均为匿名，我们绝对无法根据上报的数据追溯到某个服务器或是某个玩家。  
-所有收集的数据均可公开访问: https://bstats.org/plugin/bukkit/Slimefun/4574
-
-你也可以在 `/plugins/bStats/config.yml` 下关闭数据收集。  
-了解更多请查看 [bStats 隐私政策](https://bstats.org/privacy-policy)。
-
-</details>
-
-<details>
-  <summary>GitHub 整合</summary>
-
-Slimefun4 使用 [GitHub API](https://api.github.com/) 收集关于此开源项目的使用数据。  
-请放心，你的 Minecraft 服务器信息不会被发送到 Github。
-
-这些信息包括但不限于
-
-* 协作者列表，TA 们的用户名和个人主页链接 (来自仓库`Slimefun/Slimefun4`、`Slimefun/Slimefun-Wiki`和`Slimefun/Resourcepack`)
-* 仓库中开启的问题的数量
-* 仓库中待定合并请求的数量
-* 仓库的 Star 数量
-* 仓库的分支数量
-* 仓库的代码大小
-* 仓库中代码上次提交的日期
-
-  </details>
-
-另外，插件还使用了 [textures.minecraft.net](https://www.minecraft.net/en-us) 以获取协作者的 Minecraft 皮肤。  
-请注意：Slimefun 与 `Mojang Studios` 或 Minecraft 无关。
+- **[README-UPSTREAM.md](README-UPSTREAM.md)** — 中文社区版原始 README（下载、Wiki、社区、依赖坐标、免责声明等）
+- [Slimefun4 汉化版仓库](https://github.com/SlimefunGuguProject/Slimefun4) / [官方仓库](https://github.com/Slimefun/Slimefun4)
+- [非官方中文 Wiki](https://slimefun-wiki.guizhanss.cn/) / [CHANGELOG.md](CHANGELOG.md) / [LICENSE](LICENSE)
